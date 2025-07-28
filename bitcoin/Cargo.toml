@@ -4,3 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+bitcoin = { version = "0.32.6", features = ["serde", "rand"] }
+rand = "0.8"
+
