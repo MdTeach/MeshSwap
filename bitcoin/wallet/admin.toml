@@ -1,0 +1,13 @@
+[wallet]
+name = "admin"
+type = "miner"
+network = "regtest"
+
+[keys]
+# Admin wallet - used for mining and initial funding
+mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
+derivation_path = "m/84h/1h/0h"
+
+[config]
+electrum_url = "tcp://localhost:50001"
+block_height = 0
