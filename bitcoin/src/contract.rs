@@ -1,6 +1,5 @@
 use bdk::bitcoin::{
-    Address, Amount, OutPoint, ScriptBuf, Sequence, Transaction, TxIn, TxOut, Txid,
-    Witness,
+    Address, Amount, OutPoint, ScriptBuf, Sequence, Transaction, TxIn, TxOut, Txid, Witness,
     hashes::{Hash, sha256},
     opcodes::all::*,
     script::Builder,
@@ -139,6 +138,62 @@ impl HTLCContract {
         witness.push(&sig_bytes); // Signature for recipient
         witness.push(secret); // Secret preimage
         witness.push(&[1]); // TRUE for IF branch
+        witness.push(htlc_script.as_bytes()); // The actual witness script
+
+        tx.input[0].witness = witness;
+        Ok(tx)
+    }
+
+    /// Creates a refund transaction for the sender to reclaim the HTLC after timeout
+    pub fn create_refund_transaction(
+        &self,
+        htlc_txid: Txid,
+        htlc_vout: u32,
+        amount: Amount,
+        sender_address: &Address,
+        sender_privkey: &SecretKey,
+    ) -> Result<Transaction, String> {
+        let secp = Secp256k1::new();
+        let htlc_script = self.create_script();
+
+        // Create the transaction
+        let mut tx = Transaction {
+            version: 2,
+            lock_time: bdk::bitcoin::absolute::LockTime::from_height(self.timelock)
+                .map_err(|e| format!("Invalid timelock height: {}", e))?,
+            input: vec![TxIn {
+                previous_output: OutPoint {
+                    txid: htlc_txid,
+                    vout: htlc_vout,
+                },
+                script_sig: ScriptBuf::new(),
+                sequence: Sequence::ENABLE_RBF_NO_LOCKTIME,
+                witness: Witness::new(),
+            }],
+            output: vec![TxOut {
+                value: amount.to_sat() - 1000, // Subtract fee in sats
+                script_pubkey: sender_address.script_pubkey(),
+            }],
+        };
+
+        // Create sighash for signing
+        let mut sighash_cache = SighashCache::new(&mut tx);
+        let sighash = sighash_cache
+            .segwit_signature_hash(0, &htlc_script, amount.to_sat(), EcdsaSighashType::All)
+            .map_err(|e| format!("Failed to create sighash: {}", e))?;
+
+        // Sign the transaction
+        let message = Message::from_slice(sighash.as_byte_array())
+            .map_err(|e| format!("Failed to create message: {}", e))?;
+        let signature = secp.sign_ecdsa(&message, sender_privkey);
+        let mut sig_bytes = signature.serialize_der().to_vec();
+        sig_bytes.push(EcdsaSighashType::All as u8);
+
+        // Build witness stack for timeout path (ELSE branch)
+        // P2WSH witness stack: [signature] [0] [witness_script]
+        let mut witness = Witness::new();
+        witness.push(&sig_bytes); // Signature for sender
+        witness.push(&[]); // FALSE for ELSE branch (empty array = false)
         witness.push(htlc_script.as_bytes()); // The actual witness script
 
         tx.input[0].witness = witness;

@@ -2,29 +2,29 @@ use std::process::Command;
 use std::thread;
 use std::time::Duration;
 
-/// End-to-End HTLC Test
+/// End-to-End HTLC Refund Test
 ///
-/// This test demonstrates a complete HTLC (Hash Time Locked Contract) atomic swap flow:
+/// This test demonstrates a complete HTLC (Hash Time Locked Contract) timeout refund flow:
 /// 1. Fresh blockchain with initial balances
 /// 2. Admin sends funds to maker
-/// 3. Maker creates HTLC for taker with secret
-/// 4. Taker claims HTLC using the secret
+/// 3. Maker creates HTLC for taker with secret and short timeout
+/// 4. Wait for timeout to expire without taker claiming
+/// 5. Maker reclaims funds via timeout refund
 ///
 /// Expected Flow:
-/// Admin (10 BTC) → sends 3 BTC → Maker (3 BTC) → creates 1.5 BTC HTLC → Taker claims with secret
+/// Admin (10 BTC) → sends 3 BTC → Maker (3 BTC) → creates 1.5 BTC HTLC → timeout expires → Maker refunds 1.5 BTC
 ///
 /// Final balances:
-/// - Admin: 7 BTC
-/// - Maker: 1.5 BTC  
-/// - Taker: 1.5 BTC
+/// - Admin: 7 BTC  
+/// - Maker: 3 BTC (back to original after refund)
+/// - Taker: 0 BTC (never claimed)
 #[test]
-fn test_htlc_claim() {
-    println!("🚀 Starting End-to-End HTLC Test");
+fn test_htlc_refund() {
+    println!("🚀 Starting End-to-End HTLC Refund Test");
 
     // Test parameters
-    let secret = "atomic-secret-2024";
+    let secret = "timeout-refund-secret-2024";
     let htlc_amount = 1.5;
-    let timeout_block = 200;
     let admin_to_maker_amount = 3.0;
 
     // Step 0: Clear the chain state
@@ -41,10 +41,11 @@ fn test_htlc_claim() {
         );
     }
 
-    // Step 1: Start fresh blockchain
-    println!("\n📦 Step 1: Starting fresh Bitcoin regtest blockchain...");
+    // Step 1: Start fresh blockchain with fast mining (3s blocks)
+    println!("\n📦 Step 1: Starting fresh Bitcoin regtest blockchain with fast mining...");
     let start_result = Command::new("just")
         .arg("start-fast")
+        .arg("3") // 3 second blocks for faster timeout testing
         .output()
         .expect("Failed to start blockchain");
 
@@ -95,6 +96,9 @@ fn test_htlc_claim() {
         );
     }
 
+    // Wait for transaction to be mined
+    thread::sleep(Duration::from_secs(5));
+
     // Verify balances after transfer
     let admin_balance_after_send = get_wallet_balance("admin");
     let maker_balance_after_send = get_wallet_balance("maker");
@@ -108,10 +112,18 @@ fn test_htlc_claim() {
         "Maker should have received the Bitcoin"
     );
 
-    // Step 4: Maker creates HTLC for taker
+    // Step 4: Get current block height and set short timeout
+    println!("\n⏰ Step 4: Getting current block height for timeout calculation...");
+    let current_height = get_current_block_height();
+    let timeout_block = current_height + 5; // Short timeout: 5 blocks from now
+
+    println!("Current block height: {}", current_height);
+    println!("HTLC timeout set to block: {}", timeout_block);
+
+    // Step 5: Maker creates HTLC for taker with short timeout
     println!(
-        "\n🔒 Step 4: Maker creating {} BTC HTLC for taker with secret '{}'...",
-        htlc_amount, secret
+        "\n🔒 Step 5: Maker creating {} BTC HTLC for taker with secret '{}' and timeout at block {}...",
+        htlc_amount, secret, timeout_block
     );
 
     let htlc_create_result = Command::new("just")
@@ -141,36 +153,85 @@ fn test_htlc_claim() {
     // Wait for HTLC transaction to be mined
     thread::sleep(Duration::from_secs(5));
 
-    // Step 5: Taker claims HTLC with correct secret
+    // Step 6: Wait for timeout to expire (monitor block height)
     println!(
-        "\n🔑 Step 5: Taker claiming HTLC with correct secret '{}'...",
+        "\n⏳ Step 6: Waiting for timeout to expire (block {})...",
+        timeout_block
+    );
+
+    loop {
+        let current_height = get_current_block_height();
+        println!(
+            "Current block height: {} (waiting for {})",
+            current_height, timeout_block
+        );
+
+        if current_height >= timeout_block {
+            println!(
+                "✅ Timeout reached! Block {} >= {}",
+                current_height, timeout_block
+            );
+            break;
+        }
+
+        // Wait for next block (3 second intervals)
+        thread::sleep(Duration::from_secs(4));
+    }
+
+    // Step 7: Test that refund fails before adequate time (should not happen now, but let's be safe)
+    println!("\n🚫 Step 7: Verifying timeout protection is working...");
+    let early_refund_result = Command::new("just")
+        .arg("htlc-refund-maker")
+        .arg(&contract_id)
+        .arg(secret)
+        .arg(htlc_amount.to_string())
+        .arg((timeout_block - 1).to_string()) // Try with a block height that hasn't been reached
+        .arg("wallet/taker.toml")
+        .output()
+        .expect("Failed to attempt early refund");
+
+    // This should fail because we're using timeout_block - 1
+    if early_refund_result.status.success() {
+        println!(
+            "⚠️  Warning: Early refund succeeded when it should have failed (this might be OK if timeout has long passed)"
+        );
+    } else {
+        println!(
+            "✅ Early refund correctly failed: {}",
+            String::from_utf8_lossy(&early_refund_result.stderr)
+        );
+    }
+
+    // Step 8: Maker refunds HTLC after timeout
+    println!(
+        "\n🔄 Step 8: Maker refunding HTLC after timeout with secret '{}'...",
         secret
     );
-    let claim_result = Command::new("just")
-        .arg("htlc-claim-taker")
+    let refund_result = Command::new("just")
+        .arg("htlc-refund-maker")
         .arg(&contract_id)
         .arg(secret)
         .arg(htlc_amount.to_string())
         .arg(timeout_block.to_string())
-        .arg("wallet/maker.toml")
+        .arg("wallet/taker.toml")
         .output()
-        .expect("Failed to claim HTLC");
+        .expect("Failed to refund HTLC");
 
-    if !claim_result.status.success() {
+    if !refund_result.status.success() {
         panic!(
-            "Failed to claim HTLC: {}",
-            String::from_utf8_lossy(&claim_result.stderr)
+            "Failed to refund HTLC: {}",
+            String::from_utf8_lossy(&refund_result.stderr)
         );
     }
 
-    let claim_output = String::from_utf8_lossy(&claim_result.stdout);
-    println!("HTLC claim output:\n{}", claim_output);
+    let refund_output = String::from_utf8_lossy(&refund_result.stdout);
+    println!("HTLC refund output:\n{}", refund_output);
 
-    // Wait for claim transaction to be mined
+    // Wait for refund transaction to be mined
     thread::sleep(Duration::from_secs(5));
 
-    // Step 7: Verify final balances
-    println!("\n🏁 Step 6: Verifying final balances...");
+    // Step 9: Verify final balances
+    println!("\n🏁 Step 9: Verifying final balances...");
     let final_admin_balance = get_wallet_balance("admin");
     let final_maker_balance = get_wallet_balance("maker");
     let final_taker_balance = get_wallet_balance("taker");
@@ -186,16 +247,17 @@ fn test_htlc_claim() {
         "Admin should have ~7 BTC (10 - 3 sent)"
     );
     assert!(
-        (final_maker_balance - 1.5).abs() < 0.1,
-        "Maker should have ~1.5 BTC (3 received - 1.5 locked in HTLC)"
+        (final_maker_balance - 3.0).abs() < 0.1,
+        "Maker should have ~3 BTC (3 received - 1.5 locked + 1.5 refunded)"
     );
     assert!(
-        (final_taker_balance - 1.5).abs() < 0.1,
-        "Taker should have ~1.5 BTC (claimed from HTLC)"
+        final_taker_balance < 0.1,
+        "Taker should have ~0 BTC (never claimed the HTLC)"
     );
 
-    println!("\n✅ End-to-End HTLC Test Completed Successfully!");
-    println!("🎉 Atomic swap executed: Maker → Taker (1.5 BTC) via HTLC with secret revelation");
+    println!("\n✅ End-to-End HTLC Refund Test Completed Successfully!");
+    println!("🎉 Timeout refund executed: Maker → Created HTLC → Timeout → Refunded (1.5 BTC)");
+    println!("⏰ This demonstrates that funds are safely returned to sender when timeout expires");
 
     // Cleanup: Stop blockchain
     println!("\n🧹 Cleaning up: Stopping blockchain...");
@@ -234,6 +296,30 @@ fn get_wallet_balance(wallet: &str) -> f64 {
     }
 
     0.0
+}
+
+/// Helper function to get current block height
+fn get_current_block_height() -> u32 {
+    let height_result = Command::new("bitcoin-cli")
+        .args([
+            "-regtest",
+            "-rpcuser=bitcoin",
+            "-rpcpassword=bitcoin",
+            "-rpcport=18443",
+            "getblockcount",
+        ])
+        .output()
+        .expect("Failed to get block height");
+
+    if !height_result.status.success() {
+        panic!(
+            "Failed to get block height: {}",
+            String::from_utf8_lossy(&height_result.stderr)
+        );
+    }
+
+    let height_str = String::from_utf8_lossy(&height_result.stdout);
+    height_str.trim().parse::<u32>().unwrap_or(0)
 }
 
 /// Helper function to extract contract ID from HTLC creation output

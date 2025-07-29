@@ -105,6 +105,22 @@ htlc-claim-taker CONTRACT_ID SECRET AMOUNT TIMEOUT FROM:
 htlc-claim WALLET CONTRACT_ID SECRET AMOUNT TIMEOUT FROM:
     cargo run -- --wallet {{WALLET}} htlc-claim --contract-id {{CONTRACT_ID}} --secret {{SECRET}} --amount {{AMOUNT}} --timeout-block {{TIMEOUT}} --from {{FROM}}
 
+# Refund HTLC with admin wallet (after timeout)
+htlc-refund-admin CONTRACT_ID SECRET AMOUNT TIMEOUT TO:
+    cargo run -- --wallet wallet/admin.toml htlc-refund --contract-id {{CONTRACT_ID}} --secret {{SECRET}} --amount {{AMOUNT}} --timeout-block {{TIMEOUT}} --to {{TO}}
+
+# Refund HTLC with maker wallet (after timeout)
+htlc-refund-maker CONTRACT_ID SECRET AMOUNT TIMEOUT TO:
+    cargo run -- --wallet wallet/maker.toml htlc-refund --contract-id {{CONTRACT_ID}} --secret {{SECRET}} --amount {{AMOUNT}} --timeout-block {{TIMEOUT}} --to {{TO}}
+
+# Refund HTLC with taker wallet (after timeout)
+htlc-refund-taker CONTRACT_ID SECRET AMOUNT TIMEOUT TO:
+    cargo run -- --wallet wallet/taker.toml htlc-refund --contract-id {{CONTRACT_ID}} --secret {{SECRET}} --amount {{AMOUNT}} --timeout-block {{TIMEOUT}} --to {{TO}}
+
+# Refund HTLC with any wallet (after timeout)
+htlc-refund WALLET CONTRACT_ID SECRET AMOUNT TIMEOUT TO:
+    cargo run -- --wallet {{WALLET}} htlc-refund --contract-id {{CONTRACT_ID}} --secret {{SECRET}} --amount {{AMOUNT}} --timeout-block {{TIMEOUT}} --to {{TO}}
+
 # HTLC Testing Examples
 # Example: Create 0.5 BTC HTLC with 500 block timeout
 htlc-test-create:
@@ -114,6 +130,10 @@ htlc-test-create:
 htlc-test-claim CONTRACT_ID="REPLACE_WITH_ACTUAL_CONTRACT_ID":
     just htlc-claim-maker {{CONTRACT_ID}} "test-secret-123" 0.5 500 wallet/admin.toml
 
+# Example: Refund the test HTLC after timeout (use actual contract ID from creation output)
+htlc-test-refund CONTRACT_ID="REPLACE_WITH_ACTUAL_CONTRACT_ID":
+    just htlc-refund-admin {{CONTRACT_ID}} "test-secret-123" 0.5 500 wallet/maker.toml
+
 # Build the project
 build:
     cargo build
@@ -121,6 +141,10 @@ build:
 # Run tests
 test:
     cargo test
+
+# Run functional tests
+fn-test:
+    cargo test -- --test-threads=1 --no-capture
 
 # Clean regtest data volume
 clean:

@@ -7,7 +7,7 @@ pub struct Args {
     /// Path to the wallet.toml configuration file
     #[arg(short, long)]
     pub wallet: PathBuf,
-    
+
     #[command(subcommand)]
     pub command: Option<Commands>,
 }
@@ -59,5 +59,23 @@ pub enum Commands {
         /// Original sender wallet TOML file (who created the HTLC)
         #[arg(short = 'f', long)]
         from: PathBuf,
+    },
+    /// Refund HTLC after timeout (sender reclaims funds)
+    HtlcRefund {
+        /// Contract ID (transaction hash)
+        #[arg(short, long)]
+        contract_id: String,
+        /// Original secret used in HTLC creation (needed to reconstruct script)
+        #[arg(short, long)]
+        secret: String,
+        /// Amount in BTC (must match original HTLC amount)
+        #[arg(short, long)]
+        amount: f64,
+        /// Timeout block height (must match original HTLC timeout)
+        #[arg(short = 'b', long)]
+        timeout_block: u32,
+        /// Original recipient wallet TOML file (who was supposed to receive)
+        #[arg(short = 't', long)]
+        to: PathBuf,
     },
 }
