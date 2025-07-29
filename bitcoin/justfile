@@ -32,6 +32,42 @@ balance-taker:
 balance WALLET:
     cargo run -- --wallet {{WALLET}}
 
+# Get wallet address for admin
+address-admin:
+    cargo run -- --wallet wallet/admin.toml address
+
+# Get wallet address for maker
+address-maker:
+    cargo run -- --wallet wallet/maker.toml address
+
+# Get wallet address for taker
+address-taker:
+    cargo run -- --wallet wallet/taker.toml address
+
+# Get address for any wallet file
+address WALLET:
+    cargo run -- --wallet {{WALLET}} address
+
+# Send BTC from admin to maker
+send-admin-to-maker AMOUNT:
+    cargo run -- --wallet wallet/admin.toml send --to wallet/maker.toml --amount {{AMOUNT}}
+
+# Send BTC from admin to taker
+send-admin-to-taker AMOUNT:
+    cargo run -- --wallet wallet/admin.toml send --to wallet/taker.toml --amount {{AMOUNT}}
+
+# Send BTC from maker to taker
+send-maker-to-taker AMOUNT:
+    cargo run -- --wallet wallet/maker.toml send --to wallet/taker.toml --amount {{AMOUNT}}
+
+# Send BTC from taker to maker
+send-taker-to-maker AMOUNT:
+    cargo run -- --wallet wallet/taker.toml send --to wallet/maker.toml --amount {{AMOUNT}}
+
+# Send BTC between any wallets
+send FROM TO AMOUNT:
+    cargo run -- --wallet {{FROM}} send --to {{TO}} --amount {{AMOUNT}}
+
 # Build the project
 build:
     cargo build
@@ -39,3 +75,9 @@ build:
 # Run tests
 test:
     cargo test
+
+# Clean regtest data volume
+clean:
+    scripts/stop_bitcoind.sh
+    rm -rf ./data
+    echo "🧹 Regtest data cleared"

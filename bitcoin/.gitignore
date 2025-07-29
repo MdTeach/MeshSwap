@@ -1,2 +1,5 @@
 .claude
 target
+data
+*.log
+*.pid
