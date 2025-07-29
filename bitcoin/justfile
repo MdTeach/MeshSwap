@@ -1,0 +1,41 @@
+# Bitcoin Wallet CLI - Just Commands
+
+# Start Bitcoin regtest with automine (default: 10s blocks)
+start:
+    scripts/start_regtest.sh
+
+# Start with custom block time
+start-fast BLOCK_TIME="3":
+    BLOCK_TIME={{BLOCK_TIME}} scripts/start_regtest.sh
+
+# Start without automine
+start-no-mine:
+    AUTOMINE=false scripts/start_regtest.sh
+
+# Stop Bitcoin regtest and automine
+stop:
+    scripts/stop_bitcoind.sh
+
+# Get wallet balance for maker
+balance-maker:
+    cargo run -- --wallet wallet/maker.toml
+
+# Get wallet balance for admin  
+balance-admin:
+    cargo run -- --wallet wallet/admin.toml
+
+# Get wallet balance for taker
+balance-taker:
+    cargo run -- --wallet wallet/taker.toml
+
+# Get balance for any wallet file
+balance WALLET:
+    cargo run -- --wallet {{WALLET}}
+
+# Build the project
+build:
+    cargo build
+
+# Run tests
+test:
+    cargo test
