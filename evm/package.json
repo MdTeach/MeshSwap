@@ -1,0 +1,42 @@
+{
+  "name": "meshswap-evm",
+  "version": "1.0.0",
+  "description": "EVM contracts and TypeScript utilities for MeshSwap",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "ts-node src/index.ts",
+    "test": "forge test",
+    "test:ts": "ts-node test/typescript/index.ts",
+    "test:jest": "jest",
+    "test:jest:watch": "jest --watch",
+    "test:jest:coverage": "jest --coverage",
+    "test:all": "pnpm test && pnpm test:jest",
+    "deploy": "forge script script/Deploy.s.sol --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast",
+    "compile": "forge build",
+    "clean": "forge clean && rm -rf dist coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "ethereum",
+    "defi",
+    "foundry",
+    "typescript"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "^20.10.0",
+    "jest": "^30.0.5",
+    "ts-jest": "^29.4.0",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "ethers": "^6.8.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
