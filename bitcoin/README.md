@@ -1,46 +1,41 @@
-# Bitcoin Wallet CLI
+# Bitcoin CLI with HTLC Support
 
-A simple CLI tool to get Bitcoin wallet balance from TOML configuration files.
+Bitcoin development CLI with wallet management and Hash Time Locked Contracts.
 
-## Features
-
-- **Automine**: Automatically mines blocks at configurable intervals (default: 10s)
-- **Regtest Network**: Local Bitcoin network for development
-- **Multiple Wallets**: Pre-configured admin, maker, and taker wallets
-- **Real-time Balance**: Get wallet balance in real-time as blocks are mined
-
-## Quick Start with Just
+## Quick Start
 
 ```bash
-# Start Bitcoin regtest with automine (mines blocks every 10s)
-just start
+just start                    # Start Bitcoin regtest
+just balance-admin           # Check balance (starts with 10 BTC)
+just send-admin-to-maker 2.5 # Send Bitcoin
 
-# Get wallet balance (updates as blocks are mined)
-just balance-maker
+# HTLC atomic swap
+just htlc-create-admin-to-maker 1.0 "secret123" 500
+just htlc-claim-maker <contract_id> "secret123" 1.0 500 wallet/admin.toml
 
-# Stop Bitcoin regtest and automine
-just stop
+just stop                    # Stop
 ```
 
-## Just Commands
+## Commands
 
 ```bash
-just start                    # Start regtest with automine (10s blocks)
-just start-fast 3            # Start with faster mining (3s blocks)
-just start-no-mine           # Start without automine (manual mining only)
-just stop                    # Stop regtest and automine
+# Network
+just start                    # Start regtest
+just stop                     # Stop and cleanup
 
-just balance-maker           # Get maker wallet balance
-just balance-admin           # Get admin wallet balance  
-just balance-taker           # Get taker wallet balance
-just balance wallet/my.toml  # Get custom wallet balance
+# Wallets  
+just balance-admin           # Admin balance
+just balance-maker           # Maker balance
+just balance-taker           # Taker balance
 
-just build                   # Build project
-just test                    # Run tests
+# Transactions
+just send-admin-to-maker 5.0 # Send BTC
+just send-admin-to-taker 3.0
+just send-maker-to-taker 1.0
+
+# HTLCs (Hash Time Locked Contracts)
+just htlc-create-admin-to-maker 0.5 "secret" 500                    # Create HTLC
+just htlc-claim-maker <contract_id> "secret" 0.5 500 wallet/admin.toml  # Claim HTLC
 ```
 
-**Automine**: Continuously mines blocks in the background. Check `automine.log` for mining activity.
-
-**Block Time**: Configurable mining interval (default 10s). Faster times = more frequent transactions.
-
-Returns wallet balance in satoshis (1 BTC = 100,000,000 satoshis).
+Built with Rust + BDK + Bitcoin Core regtest for development use.

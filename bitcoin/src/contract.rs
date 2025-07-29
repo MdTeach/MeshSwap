@@ -1,10 +1,11 @@
-use bitcoin::{
-    Amount, OutPoint, Script, ScriptBuf, Transaction, TxIn, TxOut, Txid, Witness,
+use bdk::bitcoin::{
+    Address, Amount, OutPoint, ScriptBuf, Sequence, Transaction, TxIn, TxOut, Txid,
+    Witness,
     hashes::{Hash, sha256},
     opcodes::all::*,
     script::Builder,
-    secp256k1::PublicKey,
-    transaction::Version,
+    secp256k1::{Message, PublicKey, Secp256k1, SecretKey},
+    sighash::{EcdsaSighashType, SighashCache},
 };
 
 pub struct HTLCContract {
@@ -30,7 +31,7 @@ impl HTLCContract {
     }
 
     /// Creates a Hash Time Locked Contract (HTLC) Bitcoin script.
-    /// 
+    ///
     /// ```
     ///                    ┌─────────────────────────────────────┐
     ///                    │          HTLC CONTRACT              │
@@ -64,53 +65,84 @@ impl HTLCContract {
     ///                              │ ENDIF               │
     ///                              └─────────────────────┘
     /// ```
-    /// 
-    /// **How it works**: Alice locks Bitcoin that Bob can claim with a secret, 
+    ///
+    /// **How it works**: Alice locks Bitcoin that Bob can claim with a secret,
     /// or Alice gets it back after timeout. No trust needed - blockchain enforces it!
     pub fn create_script(&self) -> ScriptBuf {
         Builder::new()
             // Path 1: Recipient claims with secret preimage
             .push_opcode(OP_IF)
-                .push_opcode(OP_SHA256)                           // Hash the provided preimage
-                .push_slice(self.hash_lock.as_byte_array())       // Expected hash (commitment)
-                .push_opcode(OP_EQUALVERIFY)                     // Verify preimage hashes correctly
-                .push_slice(&self.recipient_pubkey.serialize())   // Recipient's public key
-                .push_opcode(OP_CHECKSIG)                        // Verify recipient signed this transaction
+            .push_opcode(OP_SHA256) // Hash the provided preimage
+            .push_slice(self.hash_lock.as_byte_array()) // Expected hash (commitment)
+            .push_opcode(OP_EQUALVERIFY) // Verify preimage hashes correctly
+            .push_slice(&self.recipient_pubkey.serialize()) // Recipient's public key
+            .push_opcode(OP_CHECKSIG) // Verify recipient signed this transaction
             // Path 2: Sender reclaims after timelock expires
             .push_opcode(OP_ELSE)
-                .push_int(self.timelock as i64)                  // Minimum block height for refund
-                .push_opcode(OP_CLTV)                            // Check Lock Time Verify (timelock enforcement)
-                .push_opcode(OP_DROP)                            // Remove timelock from stack
-                .push_slice(&self.sender_pubkey.serialize())     // Sender's public key
-                .push_opcode(OP_CHECKSIG)                        // Verify sender signed this transaction
-            .push_opcode(OP_ENDIF)                               // End conditional paths
+            .push_int(self.timelock as i64) // Minimum block height for refund
+            .push_opcode(OP_CLTV) // Check Lock Time Verify (timelock enforcement)
+            .push_opcode(OP_DROP) // Remove timelock from stack
+            .push_slice(&self.sender_pubkey.serialize()) // Sender's public key
+            .push_opcode(OP_CHECKSIG) // Verify sender signed this transaction
+            .push_opcode(OP_ENDIF) // End conditional paths
             .into_script()
     }
 
-    pub fn create_funding_transaction(
+    /// Creates a claim transaction for the recipient to spend the HTLC with the secret
+    pub fn create_claim_transaction(
         &self,
-        funding_txid: Txid,
-        funding_vout: u32,
+        htlc_txid: Txid,
+        htlc_vout: u32,
         amount: Amount,
-        recipient_script_pubkey: &Script,
-    ) -> Transaction {
-        Transaction {
-            version: Version(2),
-            lock_time: bitcoin::absolute::LockTime::ZERO,
+        recipient_address: &Address,
+        secret: &[u8],
+        recipient_privkey: &SecretKey,
+    ) -> Result<Transaction, String> {
+        let secp = Secp256k1::new();
+        let htlc_script = self.create_script();
+
+        // Create the transaction
+        let mut tx = Transaction {
+            version: 2,
+            lock_time: bdk::bitcoin::absolute::LockTime::ZERO,
             input: vec![TxIn {
                 previous_output: OutPoint {
-                    txid: funding_txid,
-                    vout: funding_vout,
+                    txid: htlc_txid,
+                    vout: htlc_vout,
                 },
-                script_sig: Script::new().into(),
-                sequence: bitcoin::Sequence::ENABLE_RBF_NO_LOCKTIME,
+                script_sig: ScriptBuf::new(),
+                sequence: Sequence::ENABLE_RBF_NO_LOCKTIME,
                 witness: Witness::new(),
             }],
             output: vec![TxOut {
-                value: amount,
-                script_pubkey: recipient_script_pubkey.into(),
+                value: amount.to_sat() - 1000, // Subtract fee in sats
+                script_pubkey: recipient_address.script_pubkey(),
             }],
-        }
+        };
+
+        // Create sighash for signing
+        let mut sighash_cache = SighashCache::new(&mut tx);
+        let sighash = sighash_cache
+            .segwit_signature_hash(0, &htlc_script, amount.to_sat(), EcdsaSighashType::All)
+            .map_err(|e| format!("Failed to create sighash: {}", e))?;
+
+        // Sign the transaction
+        let message = Message::from_slice(sighash.as_byte_array())
+            .map_err(|e| format!("Failed to create message: {}", e))?;
+        let signature = secp.sign_ecdsa(&message, recipient_privkey);
+        let mut sig_bytes = signature.serialize_der().to_vec();
+        sig_bytes.push(EcdsaSighashType::All as u8);
+
+        // Build witness stack for secret path (IF branch)
+        // P2WSH witness stack: [signature] [preimage] [1] [witness_script]
+        let mut witness = Witness::new();
+        witness.push(&sig_bytes); // Signature for recipient
+        witness.push(secret); // Secret preimage
+        witness.push(&[1]); // TRUE for IF branch
+        witness.push(htlc_script.as_bytes()); // The actual witness script
+
+        tx.input[0].witness = witness;
+        Ok(tx)
     }
 }
 

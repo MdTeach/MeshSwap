@@ -7,8 +7,9 @@ This project provides a Bitcoin wallet CLI tool that works with regtest network 
 ```
 bitcoin/
 ├── src/
-│   ├── main.rs          # CLI entry point with balance, address, send commands
-│   └── args.rs          # CLI argument parsing (clap)
+│   ├── main.rs          # CLI entry point with balance, address, send, HTLC commands
+│   ├── args.rs          # CLI argument parsing (clap)
+│   └── contract.rs      # HTLC (Hash Time Locked Contract) implementation
 ├── scripts/
 │   ├── start_regtest.sh # Start Bitcoin regtest with automine
 │   └── stop_bitcoind.sh # Stop Bitcoin regtest and cleanup
@@ -37,6 +38,8 @@ bitcoin/
   - `balance` (default): Returns wallet balance in BTC and sats with clean formatting
   - `address`: Returns wallet's receiving address
   - `send --to <wallet.toml> --amount <btc>`: Send BTC between wallets
+  - `htlc-create --to <wallet.toml> --amount <btc> --secret <text> --timeout-block <height>`: Create Hash Time Locked Contract
+  - `htlc-claim --contract-id <txid> --secret <text>`: Claim HTLC with secret
 - Only works with regtest network (hardcoded)
 - Uses BDK with proper BIP32 derivation paths for wallet isolation
 - Clean BTC formatting (removes trailing zeros, e.g., "2.5" instead of "2.50000000")
@@ -85,6 +88,23 @@ block_height = 0
 - `BLOCK_TIME`: Mining interval in seconds (default: 10)
 - `AUTOMINE`: Enable/disable automatic mining (default: true)
 
+### HTLC (Hash Time Locked Contract) System (`src/contract.rs`)
+- **Purpose**: Enables atomic swaps and payment channels with conditional Bitcoin transactions
+- **Two Spending Paths**:
+  1. **Secret Path**: Recipient can claim with correct secret preimage (hash unlock)
+  2. **Timeout Path**: Sender can reclaim after absolute block height timeout (time unlock)
+- **P2WSH Implementation**: Uses Pay-to-Witness-Script-Hash for SegWit efficiency
+- **Script Structure**:
+  ```
+  IF
+    SHA256 <hash_lock> EQUALVERIFY <recipient_pubkey> CHECKSIG
+  ELSE  
+    <timeout_block> CLTV DROP <sender_pubkey> CHECKSIG
+  ENDIF
+  ```
+- **Security**: No trust required - blockchain enforces the contract logic
+- **Current Status**: ✅ **Create → Claim flow working** | ⏳ Create → Wait → Refund flow pending
+
 ## Common Just Commands
 
 ```bash
@@ -113,6 +133,21 @@ just send-admin-to-taker 3   # Send 3 BTC from admin to taker
 just send-maker-to-taker 1   # Send 1 BTC from maker to taker
 just send <from> <to> <amt>  # Send between any wallets
 
+# HTLC Commands
+just htlc-create-admin-to-maker 0.5 "secret123" 500    # Create HTLC: 0.5 BTC, secret, timeout at block 500
+just htlc-create-admin-to-taker 1.0 "password" 600     # Create HTLC: 1.0 BTC, secret, timeout at block 600
+just htlc-create-maker-to-taker 0.25 "key" 450         # Create HTLC: 0.25 BTC, secret, timeout at block 450
+just htlc-create <from> <to> <amt> <secret> <timeout>  # Create HTLC between any wallets
+
+just htlc-claim-maker <contract_id> "secret123"        # Claim HTLC with maker wallet
+just htlc-claim-taker <contract_id> "password"         # Claim HTLC with taker wallet  
+just htlc-claim-admin <contract_id> "key"              # Claim HTLC with admin wallet
+just htlc-claim <wallet> <contract_id> <secret>        # Claim HTLC with any wallet
+
+# HTLC Testing Examples
+just htlc-test-create                                   # Create test HTLC (0.5 BTC, "test-secret-123", block 500)
+just htlc-test-claim <contract_id>                      # Claim test HTLC with "test-secret-123"
+
 # Build & Test
 just build                   # Build project
 just test                    # Run tests
@@ -120,8 +155,9 @@ just test                    # Run tests
 
 ## Key Files to Edit
 
-- **`src/main.rs`**: CLI logic, wallet balance/address/send functionality
+- **`src/main.rs`**: CLI logic, wallet balance/address/send/HTLC functionality
 - **`src/args.rs`**: CLI argument parsing and subcommands
+- **`src/contract.rs`**: HTLC implementation with P2WSH script construction and claim logic
 - **`scripts/start_regtest.sh`**: Automine configuration, reward distribution, data storage
 - **`justfile`**: Task runner commands
 - **`wallet/*.toml`**: Wallet configurations with derivation paths
@@ -166,6 +202,22 @@ just send-maker-to-taker <amount>    # Send BTC from maker to taker
 just send-taker-to-maker <amount>    # Send BTC from taker to maker
 just send <from> <to> <amount>       # Send between any wallets
 
+# HTLC Commands
+just htlc-create-admin-to-maker <amount> <secret> <timeout>    # Create HTLC from admin to maker
+just htlc-create-admin-to-taker <amount> <secret> <timeout>    # Create HTLC from admin to taker
+just htlc-create-maker-to-taker <amount> <secret> <timeout>    # Create HTLC from maker to taker
+just htlc-create-taker-to-maker <amount> <secret> <timeout>    # Create HTLC from taker to maker
+just htlc-create <from> <to> <amount> <secret> <timeout>       # Create HTLC between any wallets
+
+just htlc-claim-admin <contract_id> <secret>     # Claim HTLC with admin wallet
+just htlc-claim-maker <contract_id> <secret>     # Claim HTLC with maker wallet
+just htlc-claim-taker <contract_id> <secret>     # Claim HTLC with taker wallet
+just htlc-claim <wallet> <contract_id> <secret>  # Claim HTLC with any wallet
+
+# HTLC Testing Examples
+just htlc-test-create                            # Create test HTLC (0.5 BTC, "test-secret-123", block 500)
+just htlc-test-claim <contract_id>               # Claim test HTLC with "test-secret-123"
+
 # Build & Test
 just build                   # Build project
 just test                    # Run tests
@@ -173,14 +225,62 @@ just test                    # Run tests
 
 **Permission**: Claude can execute any of these just commands directly without asking for permission.
 
+# Bitcoin CLI with HTLC Support
+
+Bitcoin development CLI with wallet management and Hash Time Locked Contracts.
+
+## Quick Start
+
+```bash
+just start                    # Start Bitcoin regtest
+just balance-admin           # Check balance (starts with 10 BTC)
+just send-admin-to-maker 2.5 # Send Bitcoin
+
+# HTLC atomic swap
+just htlc-create-admin-to-maker 1.0 "secret123" 500
+just htlc-claim-maker <contract_id> "secret123"
+
+just stop                    # Stop
+```
+
+## Commands
+
+```bash
+# Network
+just start                    # Start regtest
+just stop                     # Stop and cleanup
+
+# Wallets  
+just balance-admin           # Admin balance
+just balance-maker           # Maker balance
+just balance-taker           # Taker balance
+
+# Transactions
+just send-admin-to-maker 5.0 # Send BTC
+just send-admin-to-taker 3.0
+just send-maker-to-taker 1.0
+
+# HTLCs (Hash Time Locked Contracts)
+just htlc-create-admin-to-maker 0.5 "secret" 500  # Create HTLC
+just htlc-claim-maker <contract_id> "secret"      # Claim HTLC
+```
+
+Built with Rust + BDK + Bitcoin Core regtest for development use.
+
 ## Testing
 
 - Use `just balance-admin` repeatedly to verify incrementing balance (starts at 10 BTC)
 - Check `automine.log` for mining activity and reward distribution
 - Test send functionality: `just send-admin-to-maker 1` then `just balance-maker`
+- **Test HTLC functionality**:
+  - Create HTLC: `just htlc-create-admin-to-maker 0.5 "mysecret" 500`
+  - Copy the contract ID from output (e.g., `6b6947ac...`)
+  - Claim HTLC: `just htlc-claim-maker 6b6947ac... "mysecret"`
+  - Verify balance transfer: `just balance-admin` and `just balance-maker`
 - All wallets return balance in both BTC and sats with clean formatting
 - Admin wallet should show growing balance due to initial funding + periodic rewards
 - Each wallet has unique addresses due to different derivation paths
+- **HTLC Status**: ✅ Create → Claim working | ⏳ Create → Wait → Refund pending
 
 ## Data Management
 

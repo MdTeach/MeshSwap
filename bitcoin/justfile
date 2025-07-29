@@ -68,6 +68,52 @@ send-taker-to-maker AMOUNT:
 send FROM TO AMOUNT:
     cargo run -- --wallet {{FROM}} send --to {{TO}} --amount {{AMOUNT}}
 
+# HTLC (Hash Time Locked Contract) Commands
+# Create HTLC from admin to maker
+htlc-create-admin-to-maker AMOUNT SECRET TIMEOUT:
+    cargo run -- --wallet wallet/admin.toml htlc-create --to wallet/maker.toml --amount {{AMOUNT}} --secret {{SECRET}} --timeout-block {{TIMEOUT}}
+
+# Create HTLC from admin to taker  
+htlc-create-admin-to-taker AMOUNT SECRET TIMEOUT:
+    cargo run -- --wallet wallet/admin.toml htlc-create --to wallet/taker.toml --amount {{AMOUNT}} --secret {{SECRET}} --timeout-block {{TIMEOUT}}
+
+# Create HTLC from maker to taker
+htlc-create-maker-to-taker AMOUNT SECRET TIMEOUT:
+    cargo run -- --wallet wallet/maker.toml htlc-create --to wallet/taker.toml --amount {{AMOUNT}} --secret {{SECRET}} --timeout-block {{TIMEOUT}}
+
+# Create HTLC from taker to maker
+htlc-create-taker-to-maker AMOUNT SECRET TIMEOUT:
+    cargo run -- --wallet wallet/taker.toml htlc-create --to wallet/maker.toml --amount {{AMOUNT}} --secret {{SECRET}} --timeout-block {{TIMEOUT}}
+
+# Create HTLC between any wallets
+htlc-create FROM TO AMOUNT SECRET TIMEOUT:
+    cargo run -- --wallet {{FROM}} htlc-create --to {{TO}} --amount {{AMOUNT}} --secret {{SECRET}} --timeout-block {{TIMEOUT}}
+
+# Claim HTLC with admin wallet (specify original sender wallet)
+htlc-claim-admin CONTRACT_ID SECRET AMOUNT TIMEOUT FROM:
+    cargo run -- --wallet wallet/admin.toml htlc-claim --contract-id {{CONTRACT_ID}} --secret {{SECRET}} --amount {{AMOUNT}} --timeout-block {{TIMEOUT}} --from {{FROM}}
+
+# Claim HTLC with maker wallet (specify original sender wallet)
+htlc-claim-maker CONTRACT_ID SECRET AMOUNT TIMEOUT FROM:
+    cargo run -- --wallet wallet/maker.toml htlc-claim --contract-id {{CONTRACT_ID}} --secret {{SECRET}} --amount {{AMOUNT}} --timeout-block {{TIMEOUT}} --from {{FROM}}
+
+# Claim HTLC with taker wallet (specify original sender wallet)
+htlc-claim-taker CONTRACT_ID SECRET AMOUNT TIMEOUT FROM:
+    cargo run -- --wallet wallet/taker.toml htlc-claim --contract-id {{CONTRACT_ID}} --secret {{SECRET}} --amount {{AMOUNT}} --timeout-block {{TIMEOUT}} --from {{FROM}}
+
+# Claim HTLC with any wallet (specify original sender wallet)
+htlc-claim WALLET CONTRACT_ID SECRET AMOUNT TIMEOUT FROM:
+    cargo run -- --wallet {{WALLET}} htlc-claim --contract-id {{CONTRACT_ID}} --secret {{SECRET}} --amount {{AMOUNT}} --timeout-block {{TIMEOUT}} --from {{FROM}}
+
+# HTLC Testing Examples
+# Example: Create 0.5 BTC HTLC with 500 block timeout
+htlc-test-create:
+    just htlc-create-admin-to-maker 0.5 "test-secret-123" 500
+
+# Example: Claim the test HTLC (use actual contract ID from creation output)
+htlc-test-claim CONTRACT_ID="REPLACE_WITH_ACTUAL_CONTRACT_ID":
+    just htlc-claim-maker {{CONTRACT_ID}} "test-secret-123" 0.5 500 wallet/admin.toml
+
 # Build the project
 build:
     cargo build
