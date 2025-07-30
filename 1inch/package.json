@@ -1,0 +1,27 @@
+{
+  "name": "resolver",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@types/node": "^24.1.0",
+    "nodemon": "^3.1.10",
+    "npm-run-all": "^4.1.5",
+    "rimraf": "^6.0.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "@1inch/byte-utils": "2.6.0",
+    "@1inch/cross-chain-sdk": "v0.1.15-rc.0",
+    "dotenv": "16.4.5",
+    "ethers": "6.13.2",
+    "prool": "0.0.24"
+  }
+}
