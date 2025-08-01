@@ -17,8 +17,7 @@ use eyre::{Result, eyre};
 use serde::Deserialize;
 
 use crate::blockchain::create_bitcoin_rpc_client;
-
-const SATOSHIS_PER_BTC: u64 = 100_000_000;
+use crate::constants::SATOSHIS_PER_BTC;
 
 /// Wallet configuration loaded from TOML files
 #[derive(Debug, Deserialize)]

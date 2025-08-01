@@ -3,19 +3,22 @@
 //! This module provides functionality for creating and managing taproot-based contracts,
 //! specifically Hash Time Locked Contracts for atomic swaps and payment channels.
 
-use bdk::Wallet;
-use bdk::bitcoin::Txid;
-use bdk::bitcoin::secp256k1::{PublicKey, Secp256k1};
-use bdk::blockchain::RpcBlockchain;
+use bdk::bitcoin::Address as BitcoinAddress;
+use bdk::bitcoin::secp256k1::{self, PublicKey, Scalar, Secp256k1, SecretKey};
+use bdk::bitcoin::{PrivateKey, Txid};
+use bdk::blockchain::{Blockchain, RpcBlockchain};
 use bdk::database::MemoryDatabase;
 use bdk::descriptor::IntoWalletDescriptor;
 use bdk::miniscript::Descriptor;
 use bdk::miniscript::descriptor::TapTree;
 use bdk::miniscript::policy::Concrete;
 use bdk::wallet::AddressIndex;
-use eyre::{Context, Result};
+use bdk::{FeeRate, KeychainKind, SignOptions, SyncOptions, Wallet, bitcoin};
+use eyre::{Context, Result, eyre};
+use std::collections::BTreeMap;
 use std::{str::FromStr, sync::Arc};
 
+use crate::constants::DEFAULT_FEE_RATE_SAT_PER_VB;
 use crate::transaction::send_bitcoin_to_address;
 
 /// Create a taproot-based Hash Time Locked Contract (HTLC)
@@ -74,4 +77,77 @@ pub async fn create_taproot_htlc_contract(
     ))?;
 
     Ok(transaction_id)
+}
+
+pub async fn withdraw_from_taproot_htlc(
+    bitcoin_client: &RpcBlockchain,
+    sender_wallet: &Wallet<MemoryDatabase>,
+    recipient_secret: &SecretKey,
+    recipient_public_key: secp256k1::PublicKey,
+    revocation_public_key: PublicKey,
+    swap_secret: SecretKey,
+    timelock_duration_blocks: u32,
+) -> Result<Txid> {
+    let key = swap_secret
+        .add_tweak(&Scalar::from_be_bytes(recipient_secret.secret_bytes())?)
+        .expect("Invalid secret key");
+
+    let escrow_privkey = PrivateKey::new(key, sender_wallet.network());
+
+    let revocation_pubkey = bitcoin::PublicKey {
+        inner: revocation_public_key,
+        compressed: true,
+    };
+
+    let taproot_descriptor = bdk::descriptor!(tr(
+        escrow_privkey,
+        and_v(v:pk(revocation_pubkey), older(timelock_duration_blocks))
+    ))?;
+
+    let wallet = Wallet::new(
+        taproot_descriptor,
+        None,
+        sender_wallet.network(),
+        MemoryDatabase::new(),
+    )?;
+
+    wallet
+        .sync(bitcoin_client, SyncOptions::default())
+        .wrap_err("failed to sync a BDK wallet")?;
+
+    let wallet_policy = wallet.policies(KeychainKind::External)?.unwrap();
+    let mut path = BTreeMap::new();
+    // We need to use the first leaf of the script path spend, hence the second policy
+    // If you're not sure what's happening here, no worries, this is bit tricky :)
+    // You can learn more here: https://docs.rs/bdk/latest/bdk/wallet/tx_builder/struct.TxBuilder.html#method.policy_path
+    path.insert(wallet_policy.id, vec![0]);
+
+    let (mut psbt, _details) = {
+        let mut builder = wallet.build_tx();
+
+        let recepient_address = BitcoinAddress::p2wpkh(
+            &bitcoin::PublicKey::new(recipient_public_key),
+            sender_wallet.network(),
+        )?;
+
+        builder
+            .fee_rate(FeeRate::from_sat_per_vb(DEFAULT_FEE_RATE_SAT_PER_VB))
+            .drain_wallet()
+            .drain_to(recepient_address.script_pubkey())
+            .policy_path(path, KeychainKind::External);
+
+        builder.finish()?
+    };
+
+    let is_finalized = wallet.sign(&mut psbt, SignOptions::default())?;
+
+    if !is_finalized {
+        return Err(eyre!("failed to sign and finalize a transaction"));
+    }
+
+    let txid = psbt.unsigned_tx.txid();
+
+    bitcoin_client.broadcast(&psbt.extract_tx())?;
+
+    Ok(txid)
 }

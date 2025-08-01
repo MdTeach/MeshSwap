@@ -2,9 +2,7 @@ use bdk::blockchain::{ConfigurableBlockchain, RpcBlockchain};
 use bdk::bitcoin::Network;
 use eyre::Result;
 
-const DEFAULT_RPC_URL: &str = "http://127.0.0.1:18443";
-const DEFAULT_RPC_USERNAME: &str = "bitcoin";
-const DEFAULT_RPC_PASSWORD: &str = "bitcoin";
+use crate::constants::{DEFAULT_RPC_URL, DEFAULT_RPC_USERNAME, DEFAULT_RPC_PASSWORD};
 
 /// Configuration for Bitcoin RPC connection
 #[derive(Debug, Clone)]
