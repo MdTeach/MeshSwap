@@ -1,6 +1,6 @@
 # Bitcoin CLI with HTLC Support
 
-Bitcoin development CLI with wallet management and Hash Time Locked Contracts supporting both secret revelation and timeout refund paths.
+Modern Bitcoin development CLI with wallet management and Hash Time Locked Contracts. Built with expert-level Rust patterns and modular architecture.
 
 ## Quick Start
 
@@ -9,16 +9,23 @@ just start                    # Start Bitcoin regtest
 just balance-admin           # Check balance (starts with 10 BTC)
 just send-admin-to-maker 2.5 # Send Bitcoin
 
-# HTLC atomic swap - Two possible outcomes:
-# Path 1: Recipient claims with secret
-just htlc-create-admin-to-maker 1.0 "secret123" 500
-just htlc-claim-maker <contract_id> "secret123" 1.0 500 wallet/admin.toml
-
-# Path 2: Sender reclaims after timeout (if unclaimed)
-just htlc-refund-admin <contract_id> "secret123" 1.0 500 wallet/maker.toml
+# Modern CLI with improved UX
+cargo run -- balance --wallet wallet/admin.toml
+cargo run -- send --from wallet/admin.toml --to wallet/maker.toml --amount 1.5
+cargo run -- address --wallet wallet/maker.toml
 
 just stop                    # Stop
 ```
+
+## Architecture
+
+### 🏗️ Modular Design
+- **`blockchain.rs`**: RPC client management
+- **`wallet.rs`**: Wallet operations with BitcoinWallet struct  
+- **`transaction.rs`**: Transaction building with Builder pattern
+- **`error.rs`**: Custom error types with proper handling
+- **`taproot.rs`**: HTLC/Taproot contract functionality
+- **`utils.rs`**: Backward compatibility layer
 
 ## HTLC Overview
 
@@ -31,53 +38,76 @@ This enables atomic swaps without requiring trust between parties.
 
 ## Commands
 
+### 🚀 Direct CLI Usage (Modern)
+```bash
+# Balance operations
+cargo run -- balance --wallet wallet/admin.toml
+cargo run -- balance --wallet wallet/maker.toml
+
+# Address operations  
+cargo run -- address --wallet wallet/admin.toml
+
+# Send operations
+cargo run -- send --from wallet/admin.toml --to wallet/maker.toml --amount 1.5
+cargo run -- send --from wallet/maker.toml --to wallet/taker.toml --amount 0.5
+```
+
+### ⚡ Just Shortcuts (Convenience)
 ```bash
 # Network Management
 just start                    # Start regtest
 just stop                     # Stop and cleanup
+just clean                    # Reset blockchain state
 
-# Wallet Operations
-just balance-admin           # Admin balance
-just balance-maker           # Maker balance
-just balance-taker           # Taker balance
+# Balance Commands (with improved output)
+just balance-admin           # Shows: "Balance: 6.9999436 BTC (699994360 sats)"
+just balance-maker           # Clean formatting with emoji indicators
+just balance-taker
 
-# Basic Transactions
-just send-admin-to-maker 5.0 # Send BTC
-just send-admin-to-taker 3.0
-just send-maker-to-taker 1.0
+# Send Commands (with transaction IDs)
+just send-admin-to-maker 5.0 # ✅ Enhanced output with TXID
+just send-admin-to-taker 3.0 # 📊 Amount confirmation
+just send-maker-to-taker 1.0 # 🔗 Transaction ID display
 
-# HTLC Creation
-just htlc-create-admin-to-maker 0.5 "secret" 500    # Admin → Maker
-just htlc-create-admin-to-taker 1.0 "password" 600  # Admin → Taker
-just htlc-create-maker-to-taker 0.25 "key" 450      # Maker → Taker
-
-# HTLC Claims (with secret)
-just htlc-claim-maker <contract_id> "secret" 0.5 500 wallet/admin.toml
-just htlc-claim-taker <contract_id> "password" 1.0 600 wallet/admin.toml
-just htlc-claim-admin <contract_id> "key" 0.25 450 wallet/maker.toml
-
-# HTLC Refunds (after timeout, requires original secret)
-just htlc-refund-admin <contract_id> "secret" 0.5 500 wallet/maker.toml
-just htlc-refund-admin <contract_id> "password" 1.0 600 wallet/taker.toml
-just htlc-refund-maker <contract_id> "key" 0.25 450 wallet/taker.toml
-
-# Testing Examples
-just htlc-test-create                                   # Create test HTLC
-just htlc-test-claim <contract_id>                      # Claim with secret
-just htlc-test-refund <contract_id>                     # Refund after timeout
+# Address Commands
+just address-admin           # Get receiving addresses
+just address-maker
+just address-taker
 ```
 
-## HTLC Workflow
+## Features
 
-### Successful Claim (Happy Path)
-1. Alice creates HTLC: `just htlc-create-admin-to-maker 1.0 "mysecret" 500`
-2. Bob claims with secret: `just htlc-claim-maker <contract_id> "mysecret" 1.0 500 wallet/admin.toml`
-3. ✅ Bob receives 1.0 BTC, Alice's secret is revealed
+### ✨ Expert Rust Implementation
+- **🏗️ Modular Architecture**: Clean separation of concerns
+- **🔧 Builder Pattern**: TransactionBuilder for flexible transaction construction
+- **⚡ Async/Await**: Modern async programming throughout
+- **🎯 Strong Typing**: Custom types for addresses, amounts, configurations
+- **🛡️ Error Handling**: Custom error enums with proper trait implementations
+- **📦 Memory Safety**: Efficient use of references and ownership
 
-### Timeout Refund (Fallback Path)
-1. Alice creates HTLC: `just htlc-create-admin-to-maker 1.0 "mysecret" 500`
-2. Bob doesn't claim (doesn't know secret or chooses not to)
-3. After block 500: Alice refunds: `just htlc-refund-admin <contract_id> "mysecret" 1.0 500 wallet/maker.toml`
-4. ✅ Alice gets her 1.0 BTC back
+### 🚀 Enhanced User Experience
+- **Clean Output**: Formatted BTC amounts (e.g., "2.5" instead of "2.50000000")
+- **Transaction IDs**: Full TXID display for verification
+- **Emoji Indicators**: Visual feedback for successful operations
+- **Incremental Balance**: Real-time balance updates with automine rewards
+- **Backward Compatibility**: Existing Just commands continue to work
 
-Built with Rust + BDK + Bitcoin Core regtest for development and testing.
+### 🔗 Bitcoin Integration
+- **Regtest Network**: Safe development environment
+- **BDK Integration**: Modern Bitcoin development kit
+- **Automine System**: Automatic block generation with rewards
+- **Wallet Isolation**: Different derivation paths for wallet separation
+- **Fee Management**: Configurable fee rates (default: 20 sat/vByte)
+
+## Testing
+
+```bash
+# Basic functionality test
+just start
+just balance-admin          # Should show ~10 BTC initially
+just send-admin-to-maker 0.5
+just balance-maker          # Should show 0.5 BTC received
+just stop
+```
+
+Built with **modern Rust + BDK + Bitcoin Core** for professional Bitcoin development.

@@ -1,5 +1,5 @@
-import {Interface, Signature, TransactionRequest} from 'ethers'
-import Sdk from '@1inch/cross-chain-sdk'
+import { Interface, Signature, TransactionRequest } from 'ethers'
+import { Address, CrossChainOrder, TakerTraits, Immutables } from '@1inch/cross-chain-sdk'
 import Contract from '../../ethereum/out/Resolver.sol/Resolver.json'
 
 export class Resolver {
@@ -8,19 +8,19 @@ export class Resolver {
     constructor(
         public readonly srcAddress: string,
         public readonly dstAddress: string
-    ) {}
+    ) { }
 
     public deploySrc(
         chainId: number,
-        order: Sdk.CrossChainOrder,
+        order: CrossChainOrder,
         signature: string,
-        takerTraits: Sdk.TakerTraits,
+        takerTraits: TakerTraits,
         amount: bigint,
         hashLock = order.escrowExtension.hashLockInfo
     ): TransactionRequest {
-        const {r, yParityAndS: vs} = Signature.from(signature)
-        const {args, trait} = takerTraits.encode()
-        const immutables = order.toSrcImmutables(chainId, new Sdk.Address(this.srcAddress), amount, hashLock)
+        const { r, yParityAndS: vs } = Signature.from(signature)
+        const { args, trait } = takerTraits.encode()
+        const immutables = order.toSrcImmutables(chainId, new Address(this.srcAddress), amount, hashLock)
 
         return {
             to: this.srcAddress,
@@ -41,7 +41,7 @@ export class Resolver {
         /**
          * Immutables from SrcEscrowCreated event with complement applied
          */
-        immutables: Sdk.Immutables
+        immutables: Immutables
     ): TransactionRequest {
         return {
             to: this.dstAddress,
@@ -55,9 +55,9 @@ export class Resolver {
 
     public withdraw(
         side: 'src' | 'dst',
-        escrow: Sdk.Address,
+        escrow: Address,
         secret: string,
-        immutables: Sdk.Immutables
+        immutables: Immutables
     ): TransactionRequest {
         return {
             to: side === 'src' ? this.srcAddress : this.dstAddress,
@@ -65,7 +65,7 @@ export class Resolver {
         }
     }
 
-    public cancel(side: 'src' | 'dst', escrow: Sdk.Address, immutables: Sdk.Immutables): TransactionRequest {
+    public cancel(side: 'src' | 'dst', escrow: Address, immutables: Immutables): TransactionRequest {
         return {
             to: side === 'src' ? this.srcAddress : this.dstAddress,
             data: this.iface.encodeFunctionData('cancel', [escrow.toString(), immutables.build()])

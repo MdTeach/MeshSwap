@@ -1,15 +1,20 @@
 # Bitcoin Wallet CLI - Claude Instructions
 
-This project provides a Bitcoin wallet CLI tool that works with regtest network and automine functionality.
+This project provides a Bitcoin wallet CLI tool that works with regtest network and automine functionality. The codebase has been refactored with a modular architecture following Rust best practices.
 
 ## Project Structure
 
 ```
 bitcoin/
 ├── src/
-│   ├── main.rs          # CLI entry point with balance, address, send, HTLC commands
-│   ├── args.rs          # CLI argument parsing (clap)
-│   └── contract.rs      # HTLC (Hash Time Locked Contract) implementation
+│   ├── main.rs          # CLI entry point - modular command handling
+│   ├── args.rs          # CLI argument parsing with clap
+│   ├── blockchain.rs    # Bitcoin RPC client management
+│   ├── wallet.rs        # Wallet operations and configuration
+│   ├── transaction.rs   # Transaction building and sending
+│   ├── taproot.rs       # HTLC/Taproot contract functionality
+│   ├── error.rs         # Custom error types and handling
+│   └── utils.rs         # Backward compatibility re-exports
 ├── scripts/
 │   ├── start_regtest.sh # Start Bitcoin regtest with automine
 │   └── stop_bitcoind.sh # Stop Bitcoin regtest and cleanup
@@ -24,22 +29,40 @@ bitcoin/
 
 ## Key Technologies
 
-- **Rust**: Main language with tokio async runtime
+- **Rust**: Modern async/await with tokio runtime and expert-level patterns
 - **BDK (Bitcoin Dev Kit)**: Wallet functionality and Bitcoin Core integration
 - **Bitcoin Core**: Regtest network via RPC (port 18443)
-- **Clap**: CLI argument parsing
+- **Clap**: Powerful CLI argument parsing with subcommands
+- **Eyre**: Enhanced error handling with context
 - **Just**: Task runner for common commands
+
+## Architecture & Design
+
+### Modular Structure
+- **`blockchain.rs`**: Centralized RPC client management with configuration
+- **`wallet.rs`**: Comprehensive wallet operations with BitcoinWallet struct
+- **`transaction.rs`**: Clean transaction building with TransactionBuilder pattern
+- **`error.rs`**: Custom error types for better error handling
+- **`taproot.rs`**: HTLC/Taproot functionality with improved naming
+- **`utils.rs`**: Backward compatibility layer with re-exports
+
+### Expert Rust Patterns
+- **Builder Pattern**: TransactionBuilder for flexible transaction construction
+- **Strong Typing**: Custom types for addresses, amounts, and configurations
+- **Error Handling**: Custom error enums with proper trait implementations
+- **Async/Await**: Proper async function signatures throughout
+- **Memory Safety**: Efficient use of references and ownership
 
 ## Core Functionality
 
 ### CLI Tool (`src/main.rs`)
-- Takes `--wallet <path>` argument pointing to TOML config file
+- **Modern Command Structure**: Uses clap with subcommands
 - **Commands**:
-  - `balance` (default): Returns wallet balance in BTC and sats with clean formatting
-  - `address`: Returns wallet's receiving address
-  - `send --to <wallet.toml> --amount <btc>`: Send BTC between wallets
-  - `htlc-create --to <wallet.toml> --amount <btc> --secret <text> --timeout-block <height>`: Create Hash Time Locked Contract
-  - `htlc-claim --contract-id <txid> --secret <text>`: Claim HTLC with secret
+  - `balance --wallet <path>`: Returns wallet balance in BTC and sats with clean formatting
+  - `address --wallet <path>`: Returns wallet's receiving address
+  - `send --from <wallet> --to <wallet> --amount <btc>`: Send BTC between wallets
+- **Enhanced Output**: Clean transaction IDs, emoji indicators, and formatted amounts
+- **Modular Design**: Separate handler functions for each command
 - Only works with regtest network (hardcoded)
 - Uses BDK with proper BIP32 derivation paths for wallet isolation
 - Clean BTC formatting (removes trailing zeros, e.g., "2.5" instead of "2.50000000")
@@ -88,22 +111,17 @@ block_height = 0
 - `BLOCK_TIME`: Mining interval in seconds (default: 10)
 - `AUTOMINE`: Enable/disable automatic mining (default: true)
 
-### HTLC (Hash Time Locked Contract) System (`src/contract.rs`)
+### HTLC (Hash Time Locked Contract) System (`src/taproot.rs`)
 - **Purpose**: Enables atomic swaps and payment channels with conditional Bitcoin transactions
+- **Modular Design**: Clean separation with `create_taproot_htlc_contract` function
 - **Two Spending Paths**:
   1. **Secret Path**: Recipient can claim with correct secret preimage (hash unlock)
   2. **Timeout Path**: Sender can reclaim after absolute block height timeout (time unlock)
-- **P2WSH Implementation**: Uses Pay-to-Witness-Script-Hash for SegWit efficiency
-- **Script Structure**:
-  ```
-  IF
-    SHA256 <hash_lock> EQUALVERIFY <recipient_pubkey> CHECKSIG
-  ELSE  
-    <timeout_block> CLTV DROP <sender_pubkey> CHECKSIG
-  ENDIF
-  ```
+- **Taproot Implementation**: Modern taproot-based contracts for efficiency
+- **Expert Naming**: Functions use descriptive names like `create_taproot_htlc_contract`
+- **Async Support**: Proper async/await implementation throughout
 - **Security**: No trust required - blockchain enforces the contract logic
-- **Current Status**: ✅ **Create → Claim flow working** | ⏳ Create → Wait → Refund flow pending
+- **Current Status**: ✅ **Create → Send flow working** | ⏳ Advanced HTLC features pending
 
 ## Common Just Commands
 
@@ -155,11 +173,19 @@ just test                    # Run tests
 
 ## Key Files to Edit
 
-- **`src/main.rs`**: CLI logic, wallet balance/address/send/HTLC functionality
-- **`src/args.rs`**: CLI argument parsing and subcommands
-- **`src/contract.rs`**: HTLC implementation with P2WSH script construction and claim logic
+### Core Modules (Refactored Architecture)
+- **`src/main.rs`**: CLI entry point with modular command handling
+- **`src/args.rs`**: CLI argument parsing with clap subcommands
+- **`src/blockchain.rs`**: Bitcoin RPC client management and configuration
+- **`src/wallet.rs`**: Wallet operations, BitcoinWallet struct, config loading
+- **`src/transaction.rs`**: Transaction building, TransactionBuilder pattern
+- **`src/taproot.rs`**: HTLC/Taproot contract functionality with async support
+- **`src/error.rs`**: Custom error types and comprehensive error handling
+- **`src/utils.rs`**: Backward compatibility re-exports and utility functions
+
+### Configuration & Scripts
 - **`scripts/start_regtest.sh`**: Automine configuration, reward distribution, data storage
-- **`justfile`**: Task runner commands
+- **`justfile`**: Task runner commands (updated for new CLI structure)
 - **`wallet/*.toml`**: Wallet configurations with derivation paths
 
 ## Dependencies & Setup

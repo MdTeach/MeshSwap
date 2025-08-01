@@ -18,55 +18,55 @@ stop:
 
 # Get wallet balance for maker
 balance-maker:
-    cargo run -- --wallet wallet/maker.toml
+    cargo run -- balance --wallet wallet/maker.toml
 
 # Get wallet balance for admin  
 balance-admin:
-    cargo run -- --wallet wallet/admin.toml
+    cargo run -- balance --wallet wallet/admin.toml
 
 # Get wallet balance for taker
 balance-taker:
-    cargo run -- --wallet wallet/taker.toml
+    cargo run -- balance --wallet wallet/taker.toml
 
 # Get balance for any wallet file
 balance WALLET:
-    cargo run -- --wallet {{WALLET}}
+    cargo run -- balance --wallet {{WALLET}}
 
 # Get wallet address for admin
 address-admin:
-    cargo run -- --wallet wallet/admin.toml address
+    cargo run -- address --wallet wallet/admin.toml
 
 # Get wallet address for maker
 address-maker:
-    cargo run -- --wallet wallet/maker.toml address
+    cargo run -- address --wallet wallet/maker.toml
 
 # Get wallet address for taker
 address-taker:
-    cargo run -- --wallet wallet/taker.toml address
+    cargo run -- address --wallet wallet/taker.toml
 
 # Get address for any wallet file
 address WALLET:
-    cargo run -- --wallet {{WALLET}} address
+    cargo run -- address --wallet {{WALLET}}
 
 # Send BTC from admin to maker
 send-admin-to-maker AMOUNT:
-    cargo run -- --wallet wallet/admin.toml send --to wallet/maker.toml --amount {{AMOUNT}}
+    cargo run -- send --from wallet/admin.toml --to wallet/maker.toml --amount {{AMOUNT}}
 
 # Send BTC from admin to taker
 send-admin-to-taker AMOUNT:
-    cargo run -- --wallet wallet/admin.toml send --to wallet/taker.toml --amount {{AMOUNT}}
+    cargo run -- send --from wallet/admin.toml --to wallet/taker.toml --amount {{AMOUNT}}
 
 # Send BTC from maker to taker
 send-maker-to-taker AMOUNT:
-    cargo run -- --wallet wallet/maker.toml send --to wallet/taker.toml --amount {{AMOUNT}}
+    cargo run -- send --from wallet/maker.toml --to wallet/taker.toml --amount {{AMOUNT}}
 
 # Send BTC from taker to maker
 send-taker-to-maker AMOUNT:
-    cargo run -- --wallet wallet/taker.toml send --to wallet/maker.toml --amount {{AMOUNT}}
+    cargo run -- send --from wallet/taker.toml --to wallet/maker.toml --amount {{AMOUNT}}
 
 # Send BTC between any wallets
 send FROM TO AMOUNT:
-    cargo run -- --wallet {{FROM}} send --to {{TO}} --amount {{AMOUNT}}
+    cargo run -- send --from {{FROM}} --to {{TO}} --amount {{AMOUNT}}
 
 # HTLC (Hash Time Locked Contract) Commands
 # Create HTLC from admin to maker
