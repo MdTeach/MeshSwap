@@ -40,7 +40,6 @@ export class EscrowFactory {
             topics: [event.topicHash]
         })
 
-        console.log("Abishek got the logs ", logs)
         const [data] = logs.map((l) => this.iface.decodeEventLog(event, l.data))
 
 
