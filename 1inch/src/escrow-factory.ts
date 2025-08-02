@@ -1,5 +1,5 @@
-import {id, Interface, JsonRpcProvider} from 'ethers'
-import Sdk from '@1inch/cross-chain-sdk'
+import { id, Interface, JsonRpcProvider } from 'ethers'
+import { Address, Immutables, DstImmutablesComplement, HashLock, TimeLocks } from '@1inch/cross-chain-sdk'
 import EscrowFactoryContract from '../../ethereum/out/EscrowFactory.sol/EscrowFactory.json'
 
 export class EscrowFactory {
@@ -8,10 +8,10 @@ export class EscrowFactory {
     constructor(
         private readonly provider: JsonRpcProvider,
         private readonly address: string
-    ) {}
+    ) { }
 
-    public async getSourceImpl(): Promise<Sdk.Address> {
-        return Sdk.Address.fromBigInt(
+    public async getSourceImpl(): Promise<Address> {
+        return Address.fromBigInt(
             BigInt(
                 await this.provider.call({
                     to: this.address,
@@ -21,8 +21,8 @@ export class EscrowFactory {
         )
     }
 
-    public async getDestinationImpl(): Promise<Sdk.Address> {
-        return Sdk.Address.fromBigInt(
+    public async getDestinationImpl(): Promise<Address> {
+        return Address.fromBigInt(
             BigInt(
                 await this.provider.call({
                     to: this.address,
@@ -32,7 +32,7 @@ export class EscrowFactory {
         )
     }
 
-    public async getSrcDeployEvent(blockHash: string): Promise<[Sdk.Immutables, Sdk.DstImmutablesComplement]> {
+    public async getSrcDeployEvent(blockHash: string): Promise<[Immutables, DstImmutablesComplement]> {
         const event = this.iface.getEvent('SrcEscrowCreated')!
         const logs = await this.provider.getLogs({
             blockHash,
@@ -40,26 +40,28 @@ export class EscrowFactory {
             topics: [event.topicHash]
         })
 
+        console.log("Abishek got the logs ", logs)
         const [data] = logs.map((l) => this.iface.decodeEventLog(event, l.data))
+
 
         const immutables = data.at(0)
         const complement = data.at(1)
 
         return [
-            Sdk.Immutables.new({
+            Immutables.new({
                 orderHash: immutables[0],
-                hashLock: Sdk.HashLock.fromString(immutables[1]),
-                maker: Sdk.Address.fromBigInt(immutables[2]),
-                taker: Sdk.Address.fromBigInt(immutables[3]),
-                token: Sdk.Address.fromBigInt(immutables[4]),
+                hashLock: HashLock.fromString(immutables[1]),
+                maker: Address.fromBigInt(immutables[2]),
+                taker: Address.fromBigInt(immutables[3]),
+                token: Address.fromBigInt(immutables[4]),
                 amount: immutables[5],
                 safetyDeposit: immutables[6],
-                timeLocks: Sdk.TimeLocks.fromBigInt(immutables[7])
+                timeLocks: TimeLocks.fromBigInt(immutables[7])
             }),
-            Sdk.DstImmutablesComplement.new({
-                maker: Sdk.Address.fromBigInt(complement[0]),
+            DstImmutablesComplement.new({
+                maker: Address.fromBigInt(complement[0]),
                 amount: complement[1],
-                token: Sdk.Address.fromBigInt(complement[2]),
+                token: Address.fromBigInt(complement[2]),
                 safetyDeposit: complement[3]
             })
         ]

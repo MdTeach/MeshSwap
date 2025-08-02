@@ -13,7 +13,7 @@ contract DeployTestEscrowFactory is Script {
         address limitOrderProtocol = 0x111111125421cA6dc452d289314280a0f8842A65;
         address feeToken = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2; // WETH
         address owner = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
-        address accessToken = address(0);
+        address accessToken = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2 ;// WETH as access token for simplicity
         uint32 rescueDelaySrc = uint32(60 * 60); // 1 hour
         uint32 rescueDelayDst = uint32(60 * 60); // 1 hour
 

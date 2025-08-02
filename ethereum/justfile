@@ -2,7 +2,7 @@
 
 # Start a local Ethereum node forked from mainnet (via Anvil & Alchemy)
 start:
-    anvil --fork-url https://eth-mainnet.g.alchemy.com/v2/Cjed1RpeFugEhFCpd2aNkuDaBYWprQM- --fork-block-number 23033603
+    anvil --fork-url https://eth-mainnet.g.alchemy.com/v2/Cjed1RpeFugEhFCpd2aNkuDaBYWprQM- --fork-block-number 23033603 --block-time 1
 
 # Deploy contracts to local fork (using Foundry's forge script)
 deploy:

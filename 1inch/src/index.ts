@@ -1,5 +1,6 @@
 import { uint8ArrayToHex, UINT_40_MAX } from "@1inch/byte-utils"
-import { TakerTraits, CrossChainOrder, AmountMode, Address, HashLock, TimeLocks, AuctionDetails, randBigInt, } from '@1inch/cross-chain-sdk'
+import { TakerTraits, CrossChainOrder, AmountMode, Address, HashLock, TimeLocks, AuctionDetails, randBigInt, EscrowFactory as EF } from '@1inch/cross-chain-sdk'
+import { EscrowFactory } from './escrow-factory'
 import { JsonRpcProvider, parseEther, parseUnits, randomBytes, Contract } from "ethers"
 import { Wallet } from "./wallet"
 import { Resolver } from "./resolver"
@@ -17,15 +18,19 @@ const CONFIG = {
         WETH: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
     },
     chains: { src: 1, dst: 100 },
-    amounts: { making: parseUnits('100', 6), taking: parseUnits('99', 6) },
+    amounts: { making: parseEther('0.1'), taking: parseEther('0.099') },
     deposits: { src: parseEther('0'), dst: parseEther('0') }
 } as const
 
 const WETH_ABI = [
     "function deposit() external payable",
     "function approve(address spender, uint256 amount) external returns (bool)",
-    "function balanceOf(address account) external view returns (uint256)"
+    "function balanceOf(address account) external view returns (uint256)",
+    "function transfer(address recipient, uint256 amount) external returns (bool)"
 ]
+
+
+
 
 
 async function ensureWethAndApproval(
@@ -35,17 +40,22 @@ async function ensureWethAndApproval(
     limitOrderContract: string
 ) {
     const wethContract = new Contract(wethAddress, WETH_ABI, wallet.signer)
-    
+
     if (ethAmount > 0n) {
-        const depositTx = await wethContract.deposit({ value: ethAmount })
+        const depositTx = await wethContract.deposit({ value: ethAmount * 2n }) // double the amount to ensure enough for gas
         await depositTx.wait()
     }
-    
+
     const wethBalance = await wethContract.balanceOf(await wallet.getAddress())
     if (wethBalance > 0n) {
         const approveTx = await wethContract.approve(limitOrderContract, wethBalance)
         await approveTx.wait()
     }
+
+    // send some WETH to resolver contract for approval
+    const amountInWei = parseEther("0.1"); // if you want to send 1 ETH worth
+    const transfer_tx = await wethContract.transfer(CONFIG.contracts.resolverContract, amountInWei);
+    await transfer_tx.wait();
 }
 
 async function createCrossChainOrder() {
@@ -63,6 +73,9 @@ async function createCrossChainOrder() {
         uint8ArrayToHex(randomBytes(32)),
         BigInt((await provider.getBlock('latest'))!.timestamp)
     ]
+
+    console.log("Using the src timestamp:", srcTimestamp);
+
 
     const srcChainResolver = new Wallet(CONFIG.resolverPk, provider)
 
@@ -85,14 +98,15 @@ async function createCrossChainOrder() {
         },
         {
             hashLock: HashLock.forSingleFill(secret),
+
             timeLocks: TimeLocks.new({
-                srcWithdrawal: 10n,
-                srcPublicWithdrawal: 120n,
-                srcCancellation: 121n,
-                srcPublicCancellation: 122n,
-                dstWithdrawal: 10n,
-                dstPublicWithdrawal: 100n,
-                dstCancellation: 101n
+                srcWithdrawal: 10n, // 10s finality lock for test
+                srcPublicWithdrawal: 120n, // 2m for private withdrawal
+                srcCancellation: 121n, // 1sec public withdrawal
+                srcPublicCancellation: 122n, // 1sec private cancellation
+                dstWithdrawal: 10n, // 10s finality lock for test
+                dstPublicWithdrawal: 100n, // 100sec private withdrawal
+                dstCancellation: 101n // 1sec public withdrawal
             }),
             srcChainId: CONFIG.chains.src,
             dstChainId: CONFIG.chains.dst,
@@ -137,11 +151,47 @@ async function createCrossChainOrder() {
             .setAmountThreshold(order.takingAmount),
         fillAmount
     );
-    const { txHash: orderFillHash, blockHash: srcDeployBlock } = await srcChainResolver.send(
+    const { txHash: orderFillHash, blockHash: srcDeployBlock } = await srcChainResolver.send_new(
         txn_data
     )
     console.log(`Order Fill Tx Hash: ${orderFillHash} and block has ${srcDeployBlock}`);
     console.log(`[${srcChainId}]`, `Order ${orderHash} filled for ${fillAmount} in tx ${orderFillHash}`)
+
+    const escrowFactory = new EscrowFactory(provider, CONFIG.contracts.escrowFactory)
+    const srcEscrowEvent = await escrowFactory.getSrcDeployEvent(srcDeployBlock)
+    console.log("Abishek got the srcEscrowEvent ", srcEscrowEvent);
+    
+
+    
+    const ESCROW_SRC_IMPLEMENTATION = await escrowFactory.getSourceImpl()
+    const srcEscrowAddress = new EF(new Address(CONFIG.contracts.escrowFactory)).getSrcEscrowAddress(
+        srcEscrowEvent[0],
+        ESCROW_SRC_IMPLEMENTATION
+    )
+    console.log(`Source Escrow Address: ${srcEscrowAddress.toString()}`)
+
+
+    // Sleep for 10 seconds to simulate the time locks
+    await new Promise(resolve => setTimeout(resolve, 10000));
+
+    console.log(`[{srcChainId}]`, `Withdrawing funds for resolver from ${srcEscrowAddress}`)
+    const txn =
+        resolverContract.withdraw('src', srcEscrowAddress, secret, srcEscrowEvent[0]);
+    console.log("got the txn ", txn);
+
+    const { txHash: resolverWithdrawHash } = await srcChainResolver.send(
+        txn
+    )
+    console.log(
+        `[${srcChainId}]`,
+        `Withdrew funds for resolver from ${srcEscrowAddress} to ${ await srcChainResolver.getAddress()} in tx ${resolverWithdrawHash}`
+    )
+
+    // Qurey the balance of WETH of the resolver contract
+    const wethContract = new Contract(CONFIG.tokens.WETH, WETH_ABI, provider)
+    const resolverWethBalance = await wethContract.balanceOf(await srcChainResolver.getAddress())
+    console.log(`Resolver WETH Balance: ${resolverWethBalance.toString()}`)
+    
 
 
 
