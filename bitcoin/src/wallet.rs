@@ -1,10 +1,9 @@
-#![allow(dead_code)]
 use std::{fs, path::Path};
 
 use bdk::{
     Wallet,
     bitcoin::{
-        Network,
+        Network, Address,
         secp256k1::{PublicKey, Secp256k1, SecretKey},
         util::bip32::DerivationPath,
     },
@@ -15,6 +14,7 @@ use bdk::{
 use bip39::Mnemonic;
 use eyre::{Result, eyre};
 use serde::Deserialize;
+use std::str::FromStr;
 
 use crate::blockchain::create_bitcoin_rpc_client;
 use crate::constants::SATOSHIS_PER_BTC;
@@ -32,22 +32,112 @@ pub struct KeyConfiguration {
     pub derivation_path: String,
 }
 
+/// Wallet factory for creating and managing Bitcoin wallets
+pub struct WalletFactory;
+
 /// Represents a Bitcoin wallet with associated operations
 pub struct BitcoinWallet {
     pub wallet: Wallet<MemoryDatabase>,
-    pub config_path: String,
+}
+
+impl WalletFactory {
+    /// Load a wallet from a configuration file
+    pub async fn load_wallet<P: AsRef<Path>>(config_file_path: P) -> Result<BitcoinWallet> {
+        let path = config_file_path.as_ref();
+        let wallet = Self::create_wallet_from_config(path).await?;
+        
+        Ok(BitcoinWallet { wallet })
+    }
+
+    /// Extract public and private keys from wallet configuration
+    pub fn extract_keypair<P: AsRef<Path>>(config_file_path: P) -> Result<(PublicKey, SecretKey)> {
+        let path = config_file_path.as_ref();
+        if !path.exists() {
+            return Err(eyre!("Wallet configuration file not found: {}", path.display()));
+        }
+
+        let config = Self::load_config(path)?;
+        let (private_key, _) = Self::derive_keys_from_config(&config)?;
+        let secp_context = Secp256k1::new();
+        let public_key = PublicKey::from_secret_key(&secp_context, &private_key);
+
+        Ok((public_key, private_key))
+    }
+
+    /// Get wallet address for a given config file
+    pub async fn get_address<P: AsRef<Path>>(config_file_path: P) -> Result<Address> {
+        let wallet = Self::load_wallet(config_file_path).await?;
+        let address_str = wallet.get_receiving_address()?;
+        Ok(Address::from_str(&address_str)?)
+    }
+
+    /// Get wallet balance in satoshis for a given config file
+    pub async fn get_balance_satoshis<P: AsRef<Path>>(config_file_path: P) -> Result<u64> {
+        let wallet = Self::load_wallet(config_file_path).await?;
+        wallet.get_balance_satoshis().await
+    }
+
+    fn load_config(config_file_path: &Path) -> Result<WalletConfig> {
+        let config_content = fs::read_to_string(config_file_path)?;
+        Ok(toml::from_str(&config_content)?)
+    }
+
+    fn derive_keys_from_config(config: &WalletConfig) -> Result<(SecretKey, DerivationPath)> {
+        let mnemonic = Mnemonic::parse(&config.keys.mnemonic)?;
+        let extended_key: ExtendedKey = mnemonic.into_extended_key()?;
+        let root_private_key = extended_key
+            .into_xprv(Network::Regtest)
+            .ok_or_else(|| eyre!("Invalid private key"))?;
+
+        let derivation_path: DerivationPath = config
+            .keys
+            .derivation_path
+            .parse()
+            .map_err(|e| eyre!("Invalid derivation path: {}", e))?;
+
+        let secp_context = Secp256k1::new();
+        let derived_private_key = root_private_key
+            .derive_priv(&secp_context, &derivation_path)
+            .map_err(|e| eyre!("Failed to derive key: {}", e))?;
+
+        Ok((derived_private_key.private_key, derivation_path))
+    }
+
+    async fn create_wallet_from_config(config_file_path: &Path) -> Result<Wallet<MemoryDatabase>> {
+        if !config_file_path.exists() {
+            return Err(eyre!("Wallet configuration file not found: {}", config_file_path.display()));
+        }
+
+        let config = Self::load_config(config_file_path)?;
+        let mnemonic = Mnemonic::parse(&config.keys.mnemonic)?;
+        let extended_key: ExtendedKey = mnemonic.into_extended_key()?;
+        let root_private_key = extended_key
+            .into_xprv(Network::Regtest)
+            .ok_or_else(|| eyre!("Invalid private key"))?;
+
+        let derivation_path: DerivationPath = config
+            .keys
+            .derivation_path
+            .parse()
+            .map_err(|e| eyre!("Invalid derivation path: {}", e))?;
+
+        let secp_context = Secp256k1::new();
+        let derived_private_key = root_private_key
+            .derive_priv(&secp_context, &derivation_path)
+            .map_err(|e| eyre!("Failed to derive key: {}", e))?;
+
+        let wallet_descriptor = format!("wpkh({}/*)", derived_private_key);
+        let wallet_database = MemoryDatabase::default();
+        let wallet = Wallet::new(&wallet_descriptor, None, Network::Regtest, wallet_database)?;
+
+        Ok(wallet)
+    }
 }
 
 impl BitcoinWallet {
     /// Load a wallet from a configuration file
     pub async fn from_config_file<P: AsRef<Path>>(config_file_path: P) -> Result<Self> {
-        let path = config_file_path.as_ref();
-        let wallet = load_wallet_from_config_file(path).await?;
-        
-        Ok(Self {
-            wallet,
-            config_path: path.to_string_lossy().to_string(),
-        })
+        WalletFactory::load_wallet(config_file_path).await
     }
 
     /// Get the wallet's current balance in satoshis
@@ -59,11 +149,6 @@ impl BitcoinWallet {
         Ok(balance.get_total())
     }
 
-    /// Get the wallet's current balance formatted as BTC string
-    pub async fn get_balance_btc_formatted(&self) -> Result<String> {
-        let balance_satoshis = self.get_balance_satoshis().await?;
-        Ok(format_satoshis_to_btc(balance_satoshis))
-    }
 
     /// Get the wallet's receiving address
     pub fn get_receiving_address(&self) -> Result<String> {
@@ -72,80 +157,11 @@ impl BitcoinWallet {
     }
 }
 
-/// Load a wallet from a TOML configuration file
-async fn load_wallet_from_config_file(config_file_path: &Path) -> Result<Wallet<MemoryDatabase>> {
-    if !config_file_path.exists() {
-        return Err(eyre!(
-            "Wallet configuration file not found: {}",
-            config_file_path.display()
-        ));
-    }
 
-    let config_content = fs::read_to_string(config_file_path)?;
-    let wallet_config: WalletConfig = toml::from_str(&config_content)?;
 
-    let mnemonic = Mnemonic::parse(&wallet_config.keys.mnemonic)?;
-    let extended_key: ExtendedKey = mnemonic.into_extended_key()?;
-    let root_private_key = extended_key
-        .into_xprv(Network::Regtest)
-        .ok_or_else(|| eyre!("Invalid private key"))?;
-
-    // Parse derivation path (e.g., "m/84h/1h/0h")
-    let derivation_path: DerivationPath = wallet_config
-        .keys
-        .derivation_path
-        .parse()
-        .map_err(|e| eyre!("Invalid derivation path: {}", e))?;
-
-    // Derive the key at the specific path
-    let secp_context = Secp256k1::new();
-    let derived_private_key = root_private_key
-        .derive_priv(&secp_context, &derivation_path)
-        .map_err(|e| eyre!("Failed to derive key: {}", e))?;
-
-    let wallet_descriptor = format!("wpkh({}/*)", derived_private_key);
-
-    let wallet_database = MemoryDatabase::default();
-    let wallet = Wallet::new(&wallet_descriptor, None, Network::Regtest, wallet_database)?;
-
-    Ok(wallet)
-}
-
-/// Extract public and private keys from wallet configuration
-pub fn extract_keypair_from_config(config_file_path: &Path) -> Result<(PublicKey, SecretKey)> {
-    if !config_file_path.exists() {
-        return Err(eyre!(
-            "Wallet configuration file not found: {}",
-            config_file_path.display()
-        ));
-    }
-
-    let config_content = fs::read_to_string(config_file_path)?;
-    let wallet_config: WalletConfig = toml::from_str(&config_content)?;
-
-    let mnemonic = Mnemonic::parse(&wallet_config.keys.mnemonic)?;
-    let extended_key: ExtendedKey = mnemonic.into_extended_key()?;
-    let root_private_key = extended_key
-        .into_xprv(Network::Regtest)
-        .ok_or_else(|| eyre!("Invalid private key"))?;
-
-    // Parse derivation path
-    let derivation_path: DerivationPath = wallet_config
-        .keys
-        .derivation_path
-        .parse()
-        .map_err(|e| eyre!("Invalid derivation path: {}", e))?;
-
-    // Derive the key at the specific path
-    let secp_context = Secp256k1::new();
-    let derived_private_key = root_private_key
-        .derive_priv(&secp_context, &derivation_path)
-        .map_err(|e| eyre!("Failed to derive key: {}", e))?;
-
-    let private_key = derived_private_key.private_key;
-    let public_key = PublicKey::from_secret_key(&secp_context, &private_key);
-
-    Ok((public_key, private_key))
+/// Convert BTC amount to satoshis
+pub fn btc_to_satoshis(btc_amount: f64) -> u64 {
+    (btc_amount * SATOSHIS_PER_BTC as f64) as u64
 }
 
 /// Format satoshis to a clean BTC string representation
@@ -159,14 +175,3 @@ pub fn format_satoshis_to_btc(satoshis: u64) -> String {
     }
 }
 
-/// Get wallet balance in satoshis for a given config file
-pub async fn get_wallet_balance_satoshis<P: AsRef<Path>>(config_file_path: P) -> Result<u64> {
-    let bitcoin_wallet = BitcoinWallet::from_config_file(config_file_path).await?;
-    bitcoin_wallet.get_balance_satoshis().await
-}
-
-/// Get wallet address for a given config file
-pub async fn get_wallet_address<P: AsRef<Path>>(config_file_path: P) -> Result<String> {
-    let bitcoin_wallet = BitcoinWallet::from_config_file(config_file_path).await?;
-    bitcoin_wallet.get_receiving_address()
-}
