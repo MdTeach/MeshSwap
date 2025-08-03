@@ -1,10 +1,10 @@
-import { JsonRpcProvider, MaxUint256, parseEther, randomBytes } from "ethers"
+import { JsonRpcProvider, MaxUint256, parseEther } from "ethers"
 import { TakerTraits, CrossChainOrder, AmountMode, Address, HashLock, TimeLocks, AuctionDetails, randBigInt, EscrowFactory as EF } from '@1inch/cross-chain-sdk'
 import { CONFIG } from "./config"
 import { Wallet } from "./wallet"
 import { ensureWethAndApproval } from "./utils"
-import { uint8ArrayToHex, UINT_40_MAX } from "@1inch/byte-utils"
-import { writeFileSync } from "fs"
+import { UINT_40_MAX } from "@1inch/byte-utils"
+import { writeFileSync, readFileSync } from "fs"
 import { Resolver } from "./resolver"
 import { OrderData } from "./interface"
 
@@ -31,7 +31,8 @@ async function main() {
 
     const amount_eth_to_send = parseEther('1')
     const amount_btc_to_receive = parseEther('0.01')
-    const hashLockSecret = uint8ArrayToHex(randomBytes(32))
+    const publicParams = JSON.parse(readFileSync('../prover/script/public_params.json', 'utf8'))
+    const hashLockSecret = publicParams.secret_hash
     const startTime = BigInt((await provider.getBlock('latest'))!.timestamp)
 
     const order_params: OrderParams = {
