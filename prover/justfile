@@ -1,0 +1,41 @@
+# 🚀 Atomic Swap Prover Commands
+
+# Generate a real proof and save to binary files
+generate-proof:
+    @echo "🔥 Generating real proof..."
+    cd script && RUST_LOG=info cargo run --release -- --prove
+    @echo "✅ Real proof generated and saved! 🎉"
+
+# Generate a mock proof (faster for testing)
+generate-mock-proof:
+    @echo "⚡ Generating mock proof..."
+    cd script && SP1_PROVER=mock RUST_LOG=info cargo run --release -- --prove
+    @echo "✅ Mock proof generated and saved! 🚀"
+
+# Verify the saved proof (for mock proofs)
+verify-proof:
+    @echo "🔍 Verifying saved proof..."
+    cd script && SP1_PROVER=mock RUST_LOG=info cargo run --release -- --verify
+    @echo "✅ Proof verification complete! 🔐✨"
+
+# Verify real proof (slower but secure)
+verify-real-proof:
+    @echo "🔍 Verifying real proof..."
+    cd script && RUST_LOG=info cargo run --release -- --verify
+    @echo "✅ Real proof verification complete! 🔐✨"
+
+# Clean up generated files
+clean:
+    @echo "🧹 Cleaning up generated files..."
+    cd script && rm -f proof.bin vkey.bin public_params.json
+    @echo "✅ Cleanup complete! 🗑️"
+
+# Show help
+help:
+    @echo "🚀 Atomic Swap Prover Commands:"
+    @echo "  generate-proof      - Generate real proof (slow but secure)"
+    @echo "  generate-mock-proof - Generate mock proof (fast for testing)"
+    @echo "  verify-proof        - Verify mock proof"
+    @echo "  verify-real-proof   - Verify real proof"
+    @echo "  clean               - Remove generated proof files"
+    @echo "  help                - Show this help message"

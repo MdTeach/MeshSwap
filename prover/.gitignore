@@ -17,3 +17,6 @@ pgo-data.profdata
 
 # Env
 .env
+script/proof.bin
+script/vkey.bin
+script/public_params.json

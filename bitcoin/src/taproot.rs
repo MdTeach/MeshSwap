@@ -20,7 +20,7 @@ use std::collections::BTreeMap;
 use std::{str::FromStr, sync::Arc};
 
 use crate::constants::DEFAULT_FEE_RATE_SAT_PER_VB;
-use crate::primitives::SwapInfo;
+use crate::primitives::{SwapInfo, SwapRecord};
 use crate::transaction::TransactionUtils;
 
 /// Creates a secp256k1 context for cryptographic operations
@@ -84,12 +84,12 @@ fn broadcast_transaction(
 /// * `swap_info` - Complete swap information including keys, timelock, and amount
 ///
 /// # Returns
-/// Transaction ID of the funding transaction
+/// Tuple containing (Transaction ID, descriptor string, contract address)
 pub async fn create_taproot_htlc_contract(
     blockchain_client: &RpcBlockchain,
     sender_wallet: &Wallet<MemoryDatabase>,
     swap_info: &SwapInfo,
-) -> Result<Txid> {
+) -> Result<(Txid, String, BitcoinAddress)> {
     // Validate swap info before proceeding
     swap_info
         .validate()
@@ -137,7 +137,7 @@ pub async fn create_taproot_htlc_contract(
         swap_info.amount_satoshis, contract_address
     ))?;
 
-    Ok(funding_transaction_id)
+    Ok((funding_transaction_id, taproot_descriptor_string.to_string(), contract_address))
 }
 
 /// Withdraws funds from a taproot-based Hash Time Locked Contract (HTLC)
@@ -244,7 +244,7 @@ pub async fn withdraw_from_taproot_htlc(
 /// Creates a new atomic swap using taproot-based Hash Time Locked Contract (HTLC)
 ///
 /// This is a wrapper function around `create_taproot_htlc_contract` that provides
-/// a simplified interface for creating atomic swaps.
+/// a simplified interface for creating atomic swaps and saves the swap data to JSON.
 ///
 /// # Arguments
 /// * `blockchain_client` - RPC client for blockchain operations
@@ -271,6 +271,23 @@ pub async fn new_atomic_swap(
 
     swap_info.recipient_public_key = escrow_pubkey;
 
-    let txid = create_taproot_htlc_contract(blockchain_client, sender_wallet, swap_info).await?;
+    let (txid, descriptor_string, contract_address) = create_taproot_htlc_contract(blockchain_client, sender_wallet, swap_info).await?;
+    
+    // Create and save SwapRecord to JSON
+    let swap_record = SwapRecord::new(
+        swap_info.clone(),
+        &swap_secret,
+        descriptor_string,
+        contract_address,
+        txid,
+    );
+    
+    let json_path = std::path::Path::new("swaps/swap_bitcoin.json");
+    if let Err(e) = swap_record.save_to_json(json_path) {
+        eprintln!("⚠️  Warning: Failed to save swap record to JSON: {}", e);
+    } else {
+        println!("💾 Swap record saved to {}", json_path.display());
+    }
+    
     Ok(txid)
 }

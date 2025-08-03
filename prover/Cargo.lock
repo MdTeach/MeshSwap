@@ -278,6 +278,7 @@ dependencies = [
 name = "atomic-swap-script"
 version = "0.1.0"
 dependencies = [
+ "bincode",
  "clap",
  "dotenv",
  "hex",
