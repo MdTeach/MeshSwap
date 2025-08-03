@@ -25,5 +25,9 @@ echo "🎯 Ethereum is ready! Deploying contracts..."
 just deploy
 
 echo ""
+echo "🔧 Initializing the contract in 1inch..."
+cd ../1inch && npx tsx src/init_contract.ts && cd ..
+
+echo ""
 echo "✅ Both chains are running and contracts deployed! 🎉"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

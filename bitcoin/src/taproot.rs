@@ -260,7 +260,13 @@ pub async fn new_atomic_swap(
     rng: &mut ThreadRng,
 ) -> Result<Txid> {
     let swap_secret = secp256k1::SecretKey::new(rng);
-    println!("| Swap k secret: {}", swap_secret.display_secret());
+    // Display the swap secret in a masked, beautiful format
+    let secret_bytes = swap_secret.secret_bytes();
+    let masked = format!(
+        "{:02x}e8*******86{:02x}",
+        secret_bytes[0], secret_bytes[31]
+    );
+    println!("| Swap k secret: [{}]", masked);
 
     let secp_ctx = create_secp_context();
     let swap_pubkey = swap_secret.public_key(&secp_ctx);

@@ -1,13 +1,13 @@
 {
   "swap_info": {
-    "recipient_public_key": "03beeb39c7d3758255ce363393f0796fe78d408d1be840f606d9b16659229032e3",
+    "recipient_public_key": "03c9ba9995df37f2baf2e45ae990d883583cef7c04eb74b0376a3713444317bf43",
     "revocation_public_key": "03b88e0fbe3f646337ed93bc0c0f3b843fcf7d2589e5ec884754e6402027a890b4",
     "timelock_duration_blocks": 144,
     "amount_satoshis": 100000000
   },
-  "swap_secret": "e2a95efca954f15a1614bec751d592e8cf787f88cab0e1ce6150d5ec702769aa",
-  "descriptor_string": "tr(03beeb39c7d3758255ce363393f0796fe78d408d1be840f606d9b16659229032e3,and_v(v:pk(03b88e0fbe3f646337ed93bc0c0f3b843fcf7d2589e5ec884754e6402027a890b4),older(144)))#z09t54g9",
-  "contract_address": "bcrt1pfxpxga8ty4t4xkyrnttepdg29y5fjmvdq50gcssytnwpvclr90vssxd9gs",
-  "funding_txid": "09864f039fa88ba3a4b4b7b2657ad64b4fd535befa7f68d904885d89e10ab47b",
-  "creation_timestamp": 1754193604
+  "swap_secret": "f89ed0a189d2cc47164d83207f7fc9469781251ce68c14f40c99096abb26ba72",
+  "descriptor_string": "tr(03c9ba9995df37f2baf2e45ae990d883583cef7c04eb74b0376a3713444317bf43,and_v(v:pk(03b88e0fbe3f646337ed93bc0c0f3b843fcf7d2589e5ec884754e6402027a890b4),older(144)))#ekvusuvc",
+  "contract_address": "bcrt1pmx3a4s6093nh00lt9rpnngcvwsklvt7m0taswrsj6d02kfg9vf0saa9pml",
+  "funding_txid": "604296bfacb0e5236ab38af36dea37d07424a2b567ad122a5049569f6960958f",
+  "creation_timestamp": 1754218880
 }

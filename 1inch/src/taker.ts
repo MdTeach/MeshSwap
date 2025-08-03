@@ -22,15 +22,17 @@ async function main() {
     const resolverContract = new Resolver(CONFIG.contracts.resolverContract, CONFIG.contracts.resolverBitcoinContract)
     const resolverWallet = new Wallet(CONFIG.resolverPk, provider)
 
-    // Initialize resolver contracts
-    await initialize_resolve_contracts(resolverWallet)
-
-    console.log("Resolver contract balance before order:", await get_resolver_contract_balance(resolverWallet))
 
     // Read the order tx data from `order.json`
     const orderData: OrderData = JSON.parse(await fs.promises.readFile("order.json", "utf-8"))
     const orderHash = orderData.orderHash
     const resolverTxnData = orderData.resolverTxnData
+
+    // Resolver reveal secret
+    const resolverOrder = JSON.parse(fs.readFileSync("../bitcoin/swaps/swap_bitcoin.json", "utf-8"))
+    const secret = '0x' + resolverOrder.swap_secret as string;
+    console.log(`🕵️‍♂️ Revealing secret: ${secret} for order ${orderHash} 🚀`)
+
 
     // Resolve the user order
     const transactionRequest: TransactionRequest = {
@@ -60,7 +62,7 @@ async function main() {
 
     console.log(`[EVM]`, `Withdrawing funds for resolver from ${srcEscrowAddress}`)
     const txn =
-        resolverContract.withdraw('src', srcEscrowAddress, orderData.secret, srcEscrowEvent[0]);
+        resolverContract.withdraw('src', srcEscrowAddress, secret, srcEscrowEvent[0]);
 
     const { txHash: resolverWithdrawHash } = await resolverWallet.send(
         txn
@@ -69,22 +71,7 @@ async function main() {
         `[EVM]`,
         `Withdrew funds for resolver from ${srcEscrowAddress} to ${resolverContract.srcAddress} in tx ${resolverWithdrawHash}`
     )
-    console.log("Resolver contract balance after order:", await get_resolver_contract_balance(resolverWallet))
 
 }
 
-async function initialize_resolve_contracts(resolver_wallet: Wallet) {
-    const contract_bal = await get_resolver_contract_balance(resolver_wallet)
-    if (contract_bal < parseEther("0.1")) {
-        const wethContract = new Contract(CONFIG.tokens.WETH, WETH_ABI, resolver_wallet.signer)
-        await wethContract.deposit({ value: parseEther("0.1") }).then(tx => tx.wait()); // Deposit 0.1 ETH to WETH contract
-        await wethContract.transfer(CONFIG.contracts.resolverContract, parseEther("0.1")).then(tx => tx.wait());
-    }
-}
 
-
-async function get_resolver_contract_balance(resolver_wallet: Wallet) {
-    const wethContract = new Contract(CONFIG.tokens.WETH, WETH_ABI, resolver_wallet.signer)
-    const balance = await wethContract.balanceOf(CONFIG.contracts.resolverContract)
-    return balance
-}

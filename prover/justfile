@@ -4,13 +4,13 @@
 generate-proof:
     @echo "🔥 Generating real proof..."
     cd script && RUST_LOG=info cargo run --release -- --prove
-    @echo "✅ Real proof generated and saved! 🎉"
+    @echo "✅ Proof generated and saved! 🎉"
 
 # Generate a mock proof (faster for testing)
 generate-mock-proof:
     @echo "⚡ Generating mock proof..."
     cd script && SP1_PROVER=mock RUST_LOG=info cargo run --release -- --prove
-    @echo "✅ Mock proof generated and saved! 🚀"
+    @echo "✅ Proof generated and saved! 🚀"
 
 # Verify the saved proof (for mock proofs)
 verify-proof:

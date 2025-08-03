@@ -3,7 +3,6 @@ import { CONFIG, WETH_ABI } from "./config"
 import { Wallet } from "./wallet"
 
 main().then(() => {
-    console.log("✅ Balance check completed successfully.")
 }).catch((error) => {
     console.error("❌ Error checking balances:", error)
 })

@@ -8,8 +8,7 @@ export async function ensureWethAndApproval(
     limitOrderContract: string
 ) {
     const wethContract = new Contract(wethAddress, WETH_ABI, wallet.signer)
-    const ethAmount = parseEther("5");
-
+    const ethAmount = parseEther("50");
     const userBal = await wethContract.balanceOf(await wallet.getAddress())
     if (userBal < ethAmount) {
         await wethContract.deposit({ value: ethAmount }).then(tx => tx.wait());

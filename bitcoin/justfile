@@ -18,64 +18,64 @@ stop:
 
 # Get wallet balance for maker
 balance-maker:
-    cargo run -- balance --wallet wallet/maker.toml
+    ./target/debug/chain-bitcoin balance --wallet wallet/maker.toml
 
 # Get wallet balance for admin  
 balance-admin:
-    cargo run -- balance --wallet wallet/admin.toml
+    ./target/debug/chain-bitcoin balance --wallet wallet/admin.toml
 
 # Get wallet balance for taker
 balance-taker:
-    cargo run -- balance --wallet wallet/taker.toml
+    ./target/debug/chain-bitcoin balance --wallet wallet/taker.toml
 
 # Get balance for any wallet file
 balance WALLET:
-    cargo run -- balance --wallet {{WALLET}}
+    ./target/debug/chain-bitcoin balance --wallet {{WALLET}}
 
 # Get wallet address for admin
 address-admin:
-    cargo run -- address --wallet wallet/admin.toml
+    ./target/debug/chain-bitcoin address --wallet wallet/admin.toml
 
 # Get wallet address for maker
 address-maker:
-    cargo run -- address --wallet wallet/maker.toml
+    ./target/debug/chain-bitcoin address --wallet wallet/maker.toml
 
 # Get wallet address for taker
 address-taker:
-    cargo run -- address --wallet wallet/taker.toml
+    ./target/debug/chain-bitcoin address --wallet wallet/taker.toml
 
 # Get address for any wallet file
 address WALLET:
-    cargo run -- address --wallet {{WALLET}}
+    ./target/debug/chain-bitcoin address --wallet {{WALLET}}
 
 # Send BTC from admin to maker
 send-admin-to-maker AMOUNT:
-    cargo run -- send --from wallet/admin.toml --to wallet/maker.toml --amount {{AMOUNT}}
+    ./target/debug/chain-bitcoin send --from wallet/admin.toml --to wallet/maker.toml --amount {{AMOUNT}}
 
 # Send BTC from admin to taker
 send-admin-to-taker AMOUNT:
-    cargo run -- send --from wallet/admin.toml --to wallet/taker.toml --amount {{AMOUNT}}
+    ./target/debug/chain-bitcoin send --from wallet/admin.toml --to wallet/taker.toml --amount {{AMOUNT}}
 
 # Send BTC from maker to taker
 send-maker-to-taker AMOUNT:
-    cargo run -- send --from wallet/maker.toml --to wallet/taker.toml --amount {{AMOUNT}}
+    ./target/debug/chain-bitcoin send --from wallet/maker.toml --to wallet/taker.toml --amount {{AMOUNT}}
 
 # Send BTC from taker to maker
 send-taker-to-maker AMOUNT:
-    cargo run -- send --from wallet/taker.toml --to wallet/maker.toml --amount {{AMOUNT}}
+    ./target/debug/chain-bitcoin send --from wallet/taker.toml --to wallet/maker.toml --amount {{AMOUNT}}
 
 # Send BTC between any wallets
 send FROM TO AMOUNT:
-    cargo run -- send --from {{FROM}} --to {{TO}} --amount {{AMOUNT}}
+    ./target/debug/chain-bitcoin send --from {{FROM}} --to {{TO}} --amount {{AMOUNT}}
 
 # Atomic Swap Commands (using new_atomic_swap)
 # Create atomic swap from admin to maker
 swap-admin-to-maker AMOUNT:
-    cargo run -- swap --from wallet/admin.toml --to wallet/maker.toml --amount {{AMOUNT}}
+    ./target/debug/chain-bitcoin swap --from wallet/admin.toml --to wallet/maker.toml --amount {{AMOUNT}}
 
 # Withdraw from Atomic Swap Commands (using withdraw_from_taproot_htlc)
 withdraw-maker-from-admin AMOUNT SWAP_SECRET:
-    cargo run -- withdraw --wallet wallet/maker.toml --sender wallet/admin.toml --amount {{AMOUNT}} --swap-secret {{SWAP_SECRET}}
+    ./target/debug/chain-bitcoin withdraw --wallet wallet/maker.toml --sender wallet/admin.toml --amount {{AMOUNT}} --swap-secret {{SWAP_SECRET}}
 
 # Build the project
 build:

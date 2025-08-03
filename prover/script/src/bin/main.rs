@@ -59,7 +59,6 @@ fn main() {
 
     // Setup the prover client.
     let client = ProverClient::from_env();
-    println!("✅ Prover client initialized!");
 
     if args.verify {
         verify_mode(&args);
@@ -73,13 +72,9 @@ fn main() {
     let bitcoin_swap: BitcoinSwap =
         serde_json::from_str(&json_content).expect("❌ Failed to parse JSON");
 
-    println!("🔍 Loaded Bitcoin swap: {:?}", bitcoin_swap.swap_info);
-
     // Setup the inputs.
     let mut stdin = SP1Stdin::new();
     stdin.write(&bitcoin_swap.swap_secret);
-
-    println!("🔐 Using swap secret: {}", bitcoin_swap.swap_secret);
 
     if args.execute {
         execute_mode(&client, &stdin);
@@ -103,7 +98,6 @@ fn prove_mode(client: &sp1_sdk::EnvProver, stdin: &SP1Stdin, args: &Args) {
     println!("💾 Saving verifying key to: {}", args.vkey_file);
     let vkey_bytes = bincode::serialize(&vk).expect("❌ Failed to serialize verifying key");
     fs::write(&args.vkey_file, vkey_bytes).expect("❌ Failed to write verifying key file");
-    println!("✅ Verifying key saved! 🔑");
 
     // Generate the proof
     println!("🧮 Generating proof... (this may take a while)");
@@ -118,14 +112,6 @@ fn prove_mode(client: &sp1_sdk::EnvProver, stdin: &SP1Stdin, args: &Args) {
     println!("💾 Saving proof to: {}", args.proof_file);
     let proof_bytes = bincode::serialize(&proof).expect("❌ Failed to serialize proof");
     fs::write(&args.proof_file, proof_bytes).expect("❌ Failed to write proof file");
-    println!("✅ Proof saved successfully! 📦");
-
-    // Verify the proof immediately
-    println!("🔍 Verifying proof...");
-    client
-        .verify(&proof, &vk)
-        .expect("❌ Failed to verify proof");
-    println!("✅ Proof verified successfully! 🎉🔒");
 }
 
 fn verify_mode(args: &Args) {

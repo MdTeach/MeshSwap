@@ -23,16 +23,10 @@ async function main() {
     const userWallet = new Wallet(CONFIG.userPk, provider)
     const userAddress = await userWallet.getAddress()
 
-    await ensureWethAndApproval(
-        userWallet,
-        CONFIG.tokens.WETH,
-        CONFIG.contracts.limitOrderContract
-    )
-
-    const amount_eth_to_send = parseEther('1')
-    const amount_btc_to_receive = parseEther('0.01')
+    const amount_eth_to_send = parseEther('30')
+    const amount_btc_to_receive = parseEther('1')
     const publicParams = JSON.parse(readFileSync('../prover/script/public_params.json', 'utf8'))
-    const hashLockSecret = publicParams.secret_hash
+    const hashLockSecret = "0x"+publicParams.secret_hash
     const startTime = BigInt((await provider.getBlock('latest'))!.timestamp)
 
     const order_params: OrderParams = {
@@ -61,7 +55,7 @@ async function main() {
         fillAmount
     );
 
-    const orderData:OrderData = {
+    const orderData: OrderData = {
         orderHash: orderHash,
         resolverTxnData: resolverTxnData.data!,
         secret: hashLockSecret,
@@ -93,7 +87,7 @@ function make_order(params: OrderParams): CrossChainOrder {
             takerAsset: new Address(CONFIG.tokens.BTC)
         },
         {
-            hashLock: HashLock.forSingleFill(params.hashLockSecret),
+            hashLock: HashLock.fromString(params.hashLockSecret),
 
             timeLocks: TimeLocks.new({
                 srcWithdrawal: 10n, // 10s finality lock for test
