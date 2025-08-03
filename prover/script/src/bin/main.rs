@@ -103,6 +103,7 @@ fn prove_mode(client: &sp1_sdk::EnvProver, stdin: &SP1Stdin, args: &Args) {
     println!("🧮 Generating proof... (this may take a while)");
     let proof = client
         .prove(&pk, stdin)
+        .groth16()
         .run()
         .expect("❌ Failed to generate proof");
 
